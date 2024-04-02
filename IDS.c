@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
+#include <string.h>
 
 #define MAX_QUEUE_SIZE 128 //임시값
 #define PROTOCOL_NAME_LEN 5
@@ -62,8 +63,7 @@ void dequeue(CircularQueue *queue);
 
 //Function Prototype used by Main Thread
 //void readSettingFile(); //추후설정파일에 대해 알아보고 구현
-void readRuleFile(Rule* IDSRule);
-void registerRule(Rule* IDSRule);
+void makeRule(Rule* IDSRule);
 
 int main() {
     
@@ -77,9 +77,7 @@ int main() {
     IDSRule.cnt = 0;
 
     //정책 파일을 읽고 저장한다.
-    readRuleFile(&IDSRule);
-    //정책을 저장한다
-    registerRule(&IDSRule);
+    makeRule(&IDSRule);
 
     signal(SIGINT, handleSignal);      
     for(;;) {
@@ -102,7 +100,7 @@ void initQueue(CircularQueue *queue) {
   queue->count = 0;
 }
 
-void readRuleFile(Rule* IDSRule) {
+void makeRule(Rule* IDSRule) {
   FILE * rulefile = fopen("./conf/rule.txt", "r");
   
   if (rulefile == NULL) {
@@ -117,7 +115,16 @@ void readRuleFile(Rule* IDSRule) {
     pline = fgets(line, RULE_CONTENT_LEN, rulefile);
     
     if (pline && IDSRule->cnt < MAX_RULE_CNT) {
-      strcpy(IDSRule->
+      
+      char *content;
+      char *name = strtok_r(pline, "|", &content);
+
+      strcpy(IDSRule->rules[IDSRule->cnt].name, name);
+      strcpy(IDSRule->rules[IDSRule->cnt].content, content);
+
+      IDSRule->rules[IDSRule->cnt].content[strlen(content)-1] = '\0';
+
+      printf("%s %s\n", IDSRule->rules[IDSRule->cnt].name, IDSRule->rules[IDSRule->cnt].content);
       IDSRule->cnt += 1;
     }
   }
