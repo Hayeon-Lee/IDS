@@ -5,8 +5,10 @@
 #include <signal.h>
 #include <unistd.h>
 #include <string.h>
+#include <netinet/ip.h>
 
-#define MAX_QUEUE_SIZE 128 //임시값
+#include "queue.h"
+
 #define PROTOCOL_NAME_LEN 5
 #define MAC_ADDR_LEN 18 
 #define IP_ADDR_LEN 16
@@ -14,13 +16,6 @@
 #define RULE_NAME_LEN 16
 #define RULE_CONTENT_LEN 255
 #define MAX_RULE_CNT 10 //임시값
-
-//Circular Queue Structure
-typedef struct {
-  int front, rear;
-  int count;
-  int data[MAX_QUEUE_SIZE]; 
-} CircularQueue;
 
 //PacketQueue Item Structure
 typedef struct {
@@ -57,14 +52,11 @@ typedef struct {
 
 //Function Prototype
 void handleSignal(int signal);
-void initQueue(CircularQueue *queue);
-void enqueue(CircularQueue *queue, int value);
-void dequeue(CircularQueue *queue);
 
 //Function Prototype used by Main Thread
 //void readSettingFile(); //추후설정파일에 대해 알아보고 구현
 void makeRule(Rule* IDSRule);
-
+void *afterThread(void* a);
 int main() {
     
     //Initialize Queue
@@ -78,13 +70,39 @@ int main() {
 
     //정책 파일을 읽고 저장한다.
     makeRule(&IDSRule);
+      
+    pthread_t ReadThread;
+    int thr_id = pthread_create(&ReadThread, NULL, afterThread,(void *)0);
 
     signal(SIGINT, handleSignal);      
     for(;;) {
-      printf("Program Processing...");
+ //     printf("Program Processing...");
       fflush(stdout);
       sleep(1);
     }
+}
+
+void *afterThread(void * a) { 
+ // printf("스레드 생성 완료.");
+   
+  pcap_t *handle ;
+  char errbuf[PCAP_ERRBUF_SIZE];
+
+  handle = pcap_open_offline("./packets/dns1.pcap", errbuf);
+
+  if (handle) {
+    struct pcap_pkthdr *header;
+    const u_char *packet;
+    int res = pcap_next_ex(handle, &header,&packet);
+
+
+
+    for (int i=0; i<header->caplen; i++) {
+      printf("0x%02X\t", packet[i]);
+    }
+    // printf("%c", handle->buffer);
+  }
+  return (void *)0;
 }
 
 void handleSignal(int signal) {
@@ -92,12 +110,6 @@ void handleSignal(int signal) {
     printf("프로그램을 종료합니다.\n");  
     exit(0);
   }
-}
-
-void initQueue(CircularQueue *queue) {
-  queue->front = 0;
-  queue->rear = -1;
-  queue->count = 0;
 }
 
 void makeRule(Rule* IDSRule) {
