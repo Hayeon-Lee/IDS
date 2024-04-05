@@ -7,45 +7,46 @@
 
 #include "queue.h"
 #include "readpacket.h"
-
-#define RULE_NAME_LEN 16
-#define RULE_CONTENT_LEN 255
-#define MAX_RULE_CNT 10 //임시값
-
-typedef struct {
-  unsigned char name[RULE_NAME_LEN];
-  unsigned char content[RULE_CONTENT_LEN];
-} RuleDetail;
-
-typedef struct {
-  unsigned short cnt;
-  RuleDetail rules[MAX_RULE_CNT];
-} Rule;
+#include "detectpacket.h"
 
 void handleSignal(int signal);
 
 //void readSettingFile(); //추후설정파일에 대해 알아보고 구현
 void makeRule(Rule* IDSRule);
 void *makeReadThread(void* packetqueue);
-int main() {
-    
-    //Packet Queue 선언 및 초기화
-    PacketQueue packetqueue;
-    initPacketQueue(&packetqueue);
-
+void *makeDetectThread(void *detectstruct);
+int main() { 
     //Initialize Rule Structure
     Rule IDSRule; 
     IDSRule.cnt = 0;
 
     //정책 파일을 읽고 저장한다.
     makeRule(&IDSRule);
-      
+
+    //Packet Queue 선언 및 초기화
+    PacketQueue packetqueue;
+    initPacketQueue(&packetqueue);
+    
+    //Danger Packet Queue 선언 및 초기화
+    DangerPacketQueue dangerpacketqueue;
+    initDangerPacketQueue(&dangerpacketqueue);
+
+    //Detect Thread에게 넘겨줄 구조체 선언 및 초기화
+    DetectStruct detectstruct;
+    detectstruct.rulestruct = IDSRule;
+    detectstruct.packetqueue = packetqueue;
+    detectstruct.dangerpacketqueue = dangerpacketqueue;
+  
     pthread_t ReadThread;
     int read_thr_id = pthread_create(&ReadThread, NULL, makeReadThread,(void *)&packetqueue);
+    
+    pthread_t DetectThread;
+    int detect_thr_id = pthread_create(&DetectThread, NULL, makeDetectThread, (void *)&detectstruct);
 
     signal(SIGINT, handleSignal);      
     for(;;) {
  //     printf("Program Processing...");
+
       fflush(stdout);
       sleep(1);
     }
@@ -53,7 +54,12 @@ int main() {
 
 void *makeReadThread(void *packetqueue) { 
   printf("스레드 생성 완료.");
-  start_readthread(packetqueue);   
+  start_readthread(packetqueue);    
+  return (void *)0;
+}
+
+void *makeDetectThread(void *detectstruct) {
+  printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~탐지스레드 ~~~~~~~~~~~~~~~~~~~~~~~~~\n");
   return (void *)0;
 }
 
