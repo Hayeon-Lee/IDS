@@ -71,7 +71,15 @@ void accessPacketFiles(DIR * directory, char * directory_path, void * packetqueu
             while ((result = pcap_next_ex(handle, & header, & packet)) == 1) {
 
                 if ((header -> caplen) > 0) {
-                  enqueuePacket((PacketQueue * ) packetqueue, packet, header -> caplen);
+                  Packet *value = (Packet *)malloc(sizeof(Packet));
+                  value->header = header;
+                  value->packet = packet;
+                  
+                  printf("패킷값: %x|", packet); 
+                  //정상작동함
+                  printf("access 함수:%d|", header->caplen);
+                  printf("accss 함수: %x\n", value->packet);
+                  enqueuePacket((PacketQueue * ) packetqueue, value, header -> caplen);
                 } 
                 else {
                   printf("패킷의 길이가 0입니다... 다음으로 넘어갑니다...");
