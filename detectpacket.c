@@ -2,6 +2,7 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "queue.h"
 #include "detectpacket.h"
@@ -13,12 +14,15 @@ int readUDP (const u_char *packet, int ipsize, Packet *packet_node);
 int startDetectThread(void * detectstruct) {
   DetectStruct *tmpstruct = (DetectStruct *)detectstruct;
   PacketQueue *tmpqueue = &(tmpstruct->packetqueue);
-
+  
+//  printf("%d\n", tmpqueue->count);
   while(1){
-    if(tmpqueue->count > 0) {
-     // const u_char *packet = 
-     // dequeuePacket(tmpqueue); 
-    }
+    //if(tmpqueue->count > 0) {
+      //
+   // }
+    printf("%d\n", tmpqueue->count);
+    fflush(stdout);
+    sleep(1);
   }
 }
 
