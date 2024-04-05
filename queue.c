@@ -48,6 +48,8 @@ void enqueuePacket(PacketQueue *queue, const u_char *value, int size){
   queue->rear = ((queue->rear)+1)%MAX_QUEUE_SIZE;
   queue->packet[queue->rear] = (const u_char *)malloc(size * sizeof(u_char));
   memcpy((void *)(&queue->packet[queue->rear]), value, size);
+
+  printf("%02x\n", queue->packet[queue->rear]);
   queue->count += 1;
 }
 
@@ -58,5 +60,31 @@ void dequeuePacket(PacketQueue *queue){
   }
   
   queue->front = ((queue->front)+1)%MAX_QUEUE_SIZE;
+  queue->count -= 1;
+}
+
+void initDangerPacketQueue(DangerPacketQueue *queue) {
+  queue->front = 0;
+  queue->rear = -1;
+  queue->count = 0;
+}
+
+void enqueueDangerPacket(DangerPacketQueue *queue,DangerPacket value) {
+  if (queue->count >= MAX_QUEUE_SIZE) {
+    printf("DangerQueue가 꽉 차 드롭합니다.\n");
+    return;
+  } 
+  
+  queue->rear = ((queue->rear)+1)%MAX_QUEUE_SIZE;
+  queue->items[queue->rear] = value;
+  queue->count += 1;
+}
+
+void dequeueDangerPacket(DangerPacketQueue *queue) {
+  if(queue->count <= 0) {
+    printf("DangerQueue가 비어있습니다.\n");
+    return;
+  }
+  queue->front = ((queue->front+1))%MAX_QUEUE_SIZE;
   queue->count -= 1;
 }
