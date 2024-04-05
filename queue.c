@@ -39,18 +39,18 @@ void initPacketQueue(PacketQueue *queue) {
   queue->count = 0;
 }
 
-void enqueuePacket(PacketQueue *queue, const u_char *value, int size){
+void enqueuePacket(PacketQueue *queue, Packet *value, int size){
+
   if (queue->count >= MAX_QUEUE_SIZE) {
     printf("Queue가 꽉 차 드롭합니다.\n");
     return;
   }
 
   queue->rear = ((queue->rear)+1)%MAX_QUEUE_SIZE;
-  queue->packet[queue->rear] = (const u_char *)malloc(size * sizeof(u_char));
-  memcpy((void *)(&queue->packet[queue->rear]), value, size);
-
-  printf("%02x\n", queue->packet[queue->rear]);
-  queue->count += 1;
+  queue->packet[queue->rear] = value;
+  printf("queue에 넣을때: %d|", queue->packet[queue->rear]->header->caplen);
+  printf("queue에 넣을때: %x\n", queue->packet[queue->rear]->packet);
+   queue->count += 1;
 }
 
 void dequeuePacket(PacketQueue *queue){
