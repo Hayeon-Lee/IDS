@@ -59,7 +59,7 @@ void *makeReadThread(void *packetqueue) {
 }
 
 void *makeDetectThread(void *detectstruct) {
-  printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~탐지스레드 ~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+  startDetectThread(detectstruct);
   return (void *)0;
 }
 
