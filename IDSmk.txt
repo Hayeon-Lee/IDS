@@ -1,1 +1,0 @@
-gcc IDS.c queue.c readpacket.c detectpacket.c -o IDS.out -lpthread -lpcap -D_BSD_SOURCE
