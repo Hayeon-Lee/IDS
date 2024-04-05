@@ -48,8 +48,6 @@ void enqueuePacket(PacketQueue *queue, Packet *value, int size){
 
   queue->rear = ((queue->rear)+1)%MAX_QUEUE_SIZE;
   queue->packet[queue->rear] = value;
-  printf("queue에 넣을때: %d|", queue->packet[queue->rear]->header->caplen);
-  printf("queue에 넣을때: %x\n", queue->packet[queue->rear]->packet);
    queue->count += 1;
 }
 
