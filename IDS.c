@@ -1,44 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pcap.h>
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
 #include <string.h>
-#include <netinet/ip.h>
 
 #include "queue.h"
+#include "readpacket.h"
 
-#define PROTOCOL_NAME_LEN 5
-#define MAC_ADDR_LEN 18 
-#define IP_ADDR_LEN 16
-#define PAYLOAD_LEN 1461
 #define RULE_NAME_LEN 16
 #define RULE_CONTENT_LEN 255
 #define MAX_RULE_CNT 10 //임시값
-
-//PacketQueue Item Structure
-typedef struct {
-  unsigned short srcport;
-  unsigned short dstport;
-  unsigned char protocol[PROTOCOL_NAME_LEN];
-  unsigned char srcip[IP_ADDR_LEN];
-  unsigned char dstip[IP_ADDR_LEN];
-  unsigned char srcmac[MAC_ADDR_LEN];
-  unsigned char dstmac[MAC_ADDR_LEN];
-  unsigned char payload[PAYLOAD_LEN];
-} Packet;
-
-//DangerPacketQueue Item Structure
-typedef struct {
-  unsigned long long detectiontime;
-  unsigned short srcport;
-  unsigned short dstport;
-  unsigned char protocol[PROTOCOL_NAME_LEN];
-  unsigned char srcip[IP_ADDR_LEN];
-  unsigned char dstip[IP_ADDR_LEN];
-  unsigned char rulename[RULE_NAME_LEN];
-} DangerPacket; 
 
 typedef struct {
   unsigned char name[RULE_NAME_LEN];
@@ -50,19 +22,16 @@ typedef struct {
   RuleDetail rules[MAX_RULE_CNT];
 } Rule;
 
-//Function Prototype
 void handleSignal(int signal);
 
-//Function Prototype used by Main Thread
 //void readSettingFile(); //추후설정파일에 대해 알아보고 구현
 void makeRule(Rule* IDSRule);
-void *afterThread(void* a);
+void *makeReadThread(void* packetqueue);
 int main() {
     
-    //Initialize Queue
-    CircularQueue PacketQueue, DangerPacketQueue;
-    initQueue(&PacketQueue);
-    initQueue(&DangerPacketQueue);
+    //Packet Queue 선언 및 초기화
+    PacketQueue packetqueue;
+    initPacketQueue(&packetqueue);
 
     //Initialize Rule Structure
     Rule IDSRule; 
@@ -72,7 +41,7 @@ int main() {
     makeRule(&IDSRule);
       
     pthread_t ReadThread;
-    int thr_id = pthread_create(&ReadThread, NULL, afterThread,(void *)0);
+    int read_thr_id = pthread_create(&ReadThread, NULL, makeReadThread,(void *)&packetqueue);
 
     signal(SIGINT, handleSignal);      
     for(;;) {
@@ -82,26 +51,9 @@ int main() {
     }
 }
 
-void *afterThread(void * a) { 
- // printf("스레드 생성 완료.");
-   
-  pcap_t *handle ;
-  char errbuf[PCAP_ERRBUF_SIZE];
-
-  handle = pcap_open_offline("./packets/dns1.pcap", errbuf);
-
-  if (handle) {
-    struct pcap_pkthdr *header;
-    const u_char *packet;
-    int res = pcap_next_ex(handle, &header,&packet);
-
-
-
-    for (int i=0; i<header->caplen; i++) {
-      printf("0x%02X\t", packet[i]);
-    }
-    // printf("%c", handle->buffer);
-  }
+void *makeReadThread(void *packetqueue) { 
+  printf("스레드 생성 완료.");
+  start_readthread(packetqueue);   
   return (void *)0;
 }
 
