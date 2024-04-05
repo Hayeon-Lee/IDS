@@ -8,6 +8,6 @@
 
 int start_readthread(void *packetqueue);
 int check_extension(const char *filename);
-void accessPacketFiles(DIR *directory, char * directory_path);
+void accessPacketFiles(DIR *directory, char * directory_path, void * packetqueue);
 
 #endif
