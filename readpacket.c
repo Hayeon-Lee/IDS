@@ -68,17 +68,13 @@ void accessPacketFiles(DIR * directory, char * directory_path, void * packetqueu
             const u_char * packet;
 
             //pcap file에서 한 줄 한 줄 읽어오기
-            while ((result = pcap_next_ex(handle, & header, & packet)) == 1) {
+            while ((result = pcap_next_ex(handle, & header, &packet)) == 1) {
 
                 if ((header -> caplen) > 0) {
                   Packet *value = (Packet *)malloc(sizeof(Packet));
                   value->header = header;
-                  value->packet = packet;
+                  value->packet = (u_char *)packet;
                   
-                  printf("패킷값: %x|", packet); 
-                  //정상작동함
-                  printf("access 함수:%d|", header->caplen);
-                  printf("accss 함수: %x\n", value->packet);
                   enqueuePacket((PacketQueue * ) packetqueue, value, header -> caplen);
                 } 
                 else {
