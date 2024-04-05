@@ -36,7 +36,7 @@ typedef struct {
 //PacketItem 
 typedef struct {
   struct pcap_pkthdr * header;
-  const u_char * packet;
+  u_char * packet;
 } Packet;
 
 //PacketQueue
