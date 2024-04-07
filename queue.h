@@ -14,6 +14,7 @@
 #define RULE_CONTENT_LEN 255
 #define MAX_RULE_CNT 10 //임시값
 
+#include <pthread.h>
 #include <pcap.h>
 
 typedef struct {
@@ -43,6 +44,7 @@ typedef struct {
 typedef struct {
   int front, rear;
   int count;
+  pthread_mutex_t mutex;
   Packet *packet[MAX_QUEUE_SIZE]; 
 } PacketQueue;
 
@@ -66,7 +68,7 @@ typedef struct {
 
 typedef struct {
   Rule rulestruct; //정책
-  PacketQueue packetqueue; //패킷큐
+  PacketQueue *packetqueue; //패킷큐
   DangerPacketQueue dangerpacketqueue; //위험패킷큐
 } DetectStruct;
 
@@ -76,7 +78,7 @@ void dequeue(CircularQueue *queue);
 
 void initPacketQueue(PacketQueue *queue);
 void enqueuePacket(PacketQueue *queue, Packet *value, int size);
-void dequeuePacket(PacketQueue *queue);
+Packet * dequeuePacket(PacketQueue *queue);
 
 void initDangerPacketQueue(DangerPacketQueue *queue);
 void enqueueDangerPacket(DangerPacketQueue *queue, DangerPacket value);
