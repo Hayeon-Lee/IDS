@@ -18,23 +18,27 @@ int startDetectThread(void * detectstruct) {
   
   while(1){
     sleep(1);
-    dequeuePacket(tmpqueue);
-    printf("dequeue: %d\n", tmpqueue->count);
+
+    Packet * item = dequeuePacket(tmpqueue);
+
+    if (item) {
+        printf("dequeue: %d\n", tmpqueue->count);
+        makePacketNode(item->packet, item->header);
+    }
   }
 }
 
 void makePacketNode (const u_char *packet, struct pcap_pkthdr *header) { 
   Packet packet_node;
-
+  printf("%d\n", header->caplen);
   if (header->caplen >= 14) {
     //이더넷 헤더
     unsigned short type = readEthernet(packet, &packet_node);
     
     //IPV4
     if (type == ETHERTYPE_IP && header->caplen >= 34) {
-     // int protocol = readIPV4(packet, &packet_node);
+      int protocol = readIPV4(packet, &packet_node);
       
-      int protocol =0; 
       //TCP
       if (protocol == 6 && header->caplen >= 54) {
         printf("tcp입니다\n");
