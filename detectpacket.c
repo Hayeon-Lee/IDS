@@ -7,22 +7,19 @@
 #include "queue.h"
 #include "detectpacket.h"
 
+int startDetectThread(void *detectstruct);
 unsigned short readEthernet(const u_char *packet, Packet *packet_node);
 int readIPV4(const u_char *packet, Packet *packet_node);
 int readUDP (const u_char *packet, int ipsize, Packet *packet_node);
 
 int startDetectThread(void * detectstruct) {
   DetectStruct *tmpstruct = (DetectStruct *)detectstruct;
-  PacketQueue *tmpqueue = &(tmpstruct->packetqueue);
+  PacketQueue *tmpqueue = tmpstruct->packetqueue;
   
-//  printf("%d\n", tmpqueue->count);
   while(1){
-    //if(tmpqueue->count > 0) {
-      //
-   // }
-    printf("%d\n", tmpqueue->count);
-    fflush(stdout);
     sleep(1);
+    dequeuePacket(tmpqueue);
+    printf("dequeue: %d\n", tmpqueue->count);
   }
 }
 
