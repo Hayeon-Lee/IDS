@@ -45,7 +45,7 @@ int main() {
     int detect_thr_id1 = pthread_create(&DetectThread1, NULL, makeDetectThread, (void *)&detectstruct);
     int detect_thr_id2 = pthread_create(&DetectThread2, NULL, makeDetectThread, (void *)&detectstruct);
 
-    //pthread_join(read_thr_id, NULL);
+    //pthread_join(read_thr_id, NULL); //에러남
     //pthread_join(detect_thr_id, NULL);
     
     signal(SIGINT, handleSignal);      
