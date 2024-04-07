@@ -55,7 +55,7 @@ void enqueuePacket(PacketQueue *queue, Packet *value, int size){
   pthread_mutex_unlock(&(queue->mutex));
 }
 
-void dequeuePacket(PacketQueue *queue){
+Packet * dequeuePacket(PacketQueue *queue){
   
   pthread_mutex_lock(&(queue->mutex));  
 
@@ -65,9 +65,12 @@ void dequeuePacket(PacketQueue *queue){
     return;
   }
   
+  Packet *item = queue->packet[queue->front];
   queue->front = ((queue->front)+1)%MAX_QUEUE_SIZE;
   queue->count -= 1;
   pthread_mutex_unlock(&(queue->mutex));
+
+  return item;
 }
 
 void initDangerPacketQueue(DangerPacketQueue *queue) {
