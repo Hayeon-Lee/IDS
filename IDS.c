@@ -40,8 +40,10 @@ int main() {
     pthread_t ReadThread;
     int read_thr_id = pthread_create(&ReadThread, NULL, makeReadThread,(void *)&packetqueue);
     
-    pthread_t DetectThread;
-    int detect_thr_id = pthread_create(&DetectThread, NULL, makeDetectThread, (void *)&detectstruct);
+    pthread_t DetectThread1;
+    pthread_t DetectThread2;
+    int detect_thr_id1 = pthread_create(&DetectThread1, NULL, makeDetectThread, (void *)&detectstruct);
+    int detect_thr_id2 = pthread_create(&DetectThread2, NULL, makeDetectThread, (void *)&detectstruct);
 
     //pthread_join(read_thr_id, NULL);
     //pthread_join(detect_thr_id, NULL);
