@@ -34,7 +34,7 @@ int main() {
     //Detect Thread에게 넘겨줄 구조체 선언 및 초기화
     DetectStruct detectstruct;
     detectstruct.rulestruct = IDSRule;
-    detectstruct.packetqueue = packetqueue;
+    detectstruct.packetqueue = &packetqueue;
     detectstruct.dangerpacketqueue = dangerpacketqueue;
   
     pthread_t ReadThread;
@@ -43,12 +43,14 @@ int main() {
     pthread_t DetectThread;
     int detect_thr_id = pthread_create(&DetectThread, NULL, makeDetectThread, (void *)&detectstruct);
 
+    //pthread_join(read_thr_id, NULL);
+    //pthread_join(detect_thr_id, NULL);
+    
     signal(SIGINT, handleSignal);      
     for(;;) {
- //     printf("Program Processing...");
-
-      fflush(stdout);
-      sleep(1);
+	    printf("%d\n", packetqueue.count);
+	    fflush(stdout);
+	    sleep(1);
     }
 }
 
