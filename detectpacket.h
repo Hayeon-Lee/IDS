@@ -32,4 +32,6 @@ unsigned short readEthernet(u_char *packet, PacketNode *node);
 int readIPV4(u_char *packet, PacketNode *node);
 int readUDP (u_char *packet, PacketNode *node);
 int readTCP(u_char *packet, PacketNode *node);
+
+RuleDetail checkNode(PacketNode node, Rule rule);
 #endif
