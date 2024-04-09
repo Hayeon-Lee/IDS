@@ -36,7 +36,7 @@ typedef struct {
 
 //PacketItem 
 typedef struct {
-  struct pcap_pkthdr * header;
+  int caplen;
   u_char * packet;
 } Packet;
 
@@ -78,7 +78,7 @@ void dequeue(CircularQueue *queue);
 
 void initPacketQueue(PacketQueue *queue);
 void enqueuePacket(PacketQueue *queue, Packet *value, int size);
-Packet * dequeuePacket(PacketQueue *queue);
+Packet *dequeuePacket(PacketQueue *queue);
 
 void initDangerPacketQueue(DangerPacketQueue *queue);
 void enqueueDangerPacket(DangerPacketQueue *queue, DangerPacket value);
