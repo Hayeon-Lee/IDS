@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 #include "queue.h"
 #include "readpacket.h"
@@ -15,6 +16,10 @@ void handleSignal(int signal);
 void makeRule(Rule* IDSRule);
 void *makeReadThread(void* packetqueue);
 void *makeDetectThread(void *detectstruct);
+
+int check_rule_valid();
+int return_rule_type(char *prop);
+
 int main() { 
   //Initialize Rule Structure
   Rule IDSRule; 
@@ -92,15 +97,90 @@ void makeRule(Rule* IDSRule) {
 
       char *content;
       char *name = strtok_r(pline, "|", &content);
-
-      strcpy(IDSRule->rules[IDSRule->cnt].name, name);
-      strcpy(IDSRule->rules[IDSRule->cnt].content, content);
-
-      IDSRule->rules[IDSRule->cnt].content[strlen(content)-1] = '\0';
-
-      printf("%s %s\n", IDSRule->rules[IDSRule->cnt].name, IDSRule->rules[IDSRule->cnt].content);
-      IDSRule->cnt += 1;
+      
+      if(name == NULL){
+        printf("pipeline이 없습니다. 무시합니다.\n");
+        continue;
+      }
+      else {
+        int result = check_rule_valid(content);
+ 
+        if (result == 1){
+          printf("%s %s", IDSRule->rules[IDSRule->cnt].name, IDSRule->rules[IDSRule->cnt].pattern);
+          IDSRule->cnt += 1;
+        }
+      }
     }
   }
   fclose(rulefile);
+}
+
+int check_rule_valid(char *content, Rule *IDSRule){
+
+  char *behind;
+  char *front = strtok_r(content, ";", &behind);
+
+  //; 기준으로 나누기 (요소 기준으로 나누기)
+  if (front) {
+    while(front){
+      //= 기준으로 나누기 (요소 내부 값과 키 나누기)
+      char *value;
+      char *prop = strtok_r(front, "=", &value);
+      int type = -1;
+
+      if(prop) {
+        type = return_rule_type(prop);
+        
+        switch (type) {
+          case 1: //srcmac 
+           // memcpy(IDSRule->rules[IDSRule->cnt].srcmac, value);
+            break;
+          case 2: //dstmac
+           // memcpy(IDSRule->rules[IDSRule->cnt].dstmac, value);
+            break;
+          case 3: //srcip
+            IDSRule->rules[IDSRule->cnt].srcip = inet_addr(value);
+            break;
+          case 4: //dstip
+            IDSRule->rules[IDSRule->cnt].dstip = inet_addr(value);
+            break;
+          case 5: //srcport
+            IDSRule->rules[IDSRule->cnt].srcport = atoi(value);
+            break;
+          case 6: //dstport
+            IDSRule->rules[IDSRule->cnt].dstport = atoi(value);
+            break;
+          case 7: //pattern
+            strcpy(IDSRule->rules[IDSRule->cnt].pattern, value);
+            break;
+          case -1:
+            return -1;
+        }
+      }
+      front = strtok_r(behind, ";", &behind);
+    }
+  }
+  
+  //조건이 한 개일 때(=pattern이 반드시 있어야 함)
+  else{ 
+    if (strlen(content)>0) {
+     char *value;
+     char *prop = strtok_r(content, "pattern=", &value);
+     strcpy(IDSRule->rules[IDSRule->cnt].pattern, value);
+     return 1;
+    }
+  }
+  return -1; //처리 불가능한 패킷
+}
+
+int return_rule_type(char *prop){
+  if(strcmp(prop, "srcmac")==0) return 1;
+  if(strcmp(prop, "dstmac")==0) return 2;
+  if(strcmp(prop, "srcip")==0) return 3;
+  if(strcmp(prop, "dstip")==0) return 4;
+  if(strcmp(prop, "srcport")==0) return 5;
+  if(strcmp(prop, "dstport")==0) return 6;
+  if(strcmp(prop, "pattern")==0) return 7;
+  
+  return -1;
 }
