@@ -12,7 +12,7 @@
 
 int startDetectThread(void * detectstruct) { 
   PacketQueue *pkt_queue = ((DetectStruct *)detectstruct)->packetqueue;
-  Rule rulestruct = ((DetectStruct *)detectstruct)->rulestruct;
+  Rule rule = ((DetectStruct *)detectstruct)->rulestruct;
 
   while(1){
     sleep(1);
@@ -23,6 +23,7 @@ int startDetectThread(void * detectstruct) {
       PacketNode node;
       node = makePacketNode(item->packet, item->caplen);
       printf("%d\n", node.protocol);
+      RuleDetail detail = checkNode(node, rule);
     }
   }
 }
@@ -133,4 +134,13 @@ int readTCP(u_char *packet, PacketNode *node) {
   }    
 
   return 0;
+}
+
+RuleDetail checkNode(PacketNode node, Rule rule){
+  /*
+  1. rule과 비교한다.
+  2. rule에 걸리면 dangerpacket을 생성한다.
+  3. dangerpacket을 반환한다. 
+  */
+  return rule.rules[0];
 }
