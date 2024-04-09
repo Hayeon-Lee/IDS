@@ -16,48 +16,48 @@ void makeRule(Rule* IDSRule);
 void *makeReadThread(void* packetqueue);
 void *makeDetectThread(void *detectstruct);
 int main() { 
-    //Initialize Rule Structure
-    Rule IDSRule; 
-    IDSRule.cnt = 0;
+  //Initialize Rule Structure
+  Rule IDSRule; 
+  IDSRule.cnt = 0;
 
-    //정책 파일을 읽고 저장한다.
-    makeRule(&IDSRule);
+  //정책 파일을 읽고 저장한다.
+  makeRule(&IDSRule);
 
-    //Packet Queue 선언 및 초기화
-    PacketQueue packetqueue;
-    initPacketQueue(&packetqueue);
-    
-    //Danger Packet Queue 선언 및 초기화
-    DangerPacketQueue dangerpacketqueue;
-    initDangerPacketQueue(&dangerpacketqueue);
+  //Packet Queue 선언 및 초기화
+  PacketQueue packetqueue;
+  initPacketQueue(&packetqueue);
 
-    //Detect Thread에게 넘겨줄 구조체 선언 및 초기화
-    DetectStruct detectstruct;
-    detectstruct.rulestruct = IDSRule;
-    detectstruct.packetqueue = &packetqueue;
-    detectstruct.dangerpacketqueue = dangerpacketqueue;
-  
-    pthread_t ReadThread;
-    int read_thr_id = pthread_create(&ReadThread, NULL, makeReadThread,(void *)&packetqueue);
-    
-    pthread_t DetectThread1;
-    pthread_t DetectThread2;
-    int detect_thr_id1 = pthread_create(&DetectThread1, NULL, makeDetectThread, (void *)&detectstruct);
-    int detect_thr_id2 = pthread_create(&DetectThread2, NULL, makeDetectThread, (void *)&detectstruct);
+  //Danger Packet Queue 선언 및 초기화
+  DangerPacketQueue dangerpacketqueue;
+  initDangerPacketQueue(&dangerpacketqueue);
 
-    //pthread_join(read_thr_id, NULL); //에러남
-    //pthread_join(detect_thr_id, NULL);
-    
-    signal(SIGINT, handleSignal);      
-    for(;;) {
-	    printf("%d\n", packetqueue.count);
-	    fflush(stdout);
-	    sleep(1);
-    }
+  //Detect Thread에게 넘겨줄 구조체 선언 및 초기화
+  DetectStruct detectstruct;
+  detectstruct.rulestruct = IDSRule;
+  detectstruct.packetqueue = &packetqueue;
+  detectstruct.dangerpacketqueue = dangerpacketqueue;
+
+  pthread_t ReadThread;
+  int read_thr_id = pthread_create(&ReadThread, NULL, makeReadThread,(void *)&packetqueue);
+
+  pthread_t DetectThread1;
+  pthread_t DetectThread2;
+
+  int detect_thr_id1 = pthread_create(&DetectThread1, NULL, makeDetectThread, (void *)&detectstruct);
+  int detect_thr_id2 = pthread_create(&DetectThread2, NULL, makeDetectThread, (void *)&detectstruct);
+
+  //pthread_join(read_thr_id, NULL); //에러남
+  //pthread_join(detect_thr_id, NULL);
+
+   signal(SIGINT, handleSignal);      
+   for(;;) {
+    fflush(stdout);
+    sleep(1);
+   }
 }
 
 void *makeReadThread(void *packetqueue) { 
-  printf("스레드 생성 완료.");
+  //printf("스레드 생성 완료.");
   start_readthread(packetqueue);    
   return (void *)0;
 }
@@ -76,20 +76,20 @@ void handleSignal(int signal) {
 
 void makeRule(Rule* IDSRule) {
   FILE * rulefile = fopen("./conf/rule.txt", "r");
-  
+
   if (rulefile == NULL) {
     printf("정책 파일 열기 실패.\n");
     handleSignal(2);
   }
-  
+
   char line[RULE_CONTENT_LEN];
   char *pline;
 
   while (!feof(rulefile)){
     pline = fgets(line, RULE_CONTENT_LEN, rulefile);
-    
+
     if (pline && IDSRule->cnt < MAX_RULE_CNT) {
-      
+
       char *content;
       char *name = strtok_r(pline, "|", &content);
 
