@@ -14,12 +14,25 @@
 #define RULE_CONTENT_LEN 255
 #define MAX_RULE_CNT 10 //임시값
 
+#include <netinet/if_ether.h>
 #include <pthread.h>
 #include <pcap.h>
 
 typedef struct {
   unsigned char name[RULE_NAME_LEN];
   unsigned char content[RULE_CONTENT_LEN];
+  
+  unsigned short dstmac[ETH_ALEN];
+  unsigned short srcmac[ETH_ALEN];
+  
+  unsigned int srcip; //host to network 변환됨
+  unsigned int dstip; //host to network 변환됨
+  unsigned short protocol;
+
+  unsigned short srcport; //host to network 변환됨
+  unsigned short dstport; //host to network 변환됨
+
+  char pattern[1461];
 } RuleDetail;
 
 typedef struct {
@@ -50,13 +63,13 @@ typedef struct {
 
 //DangerPacketItem
 typedef struct {
-  unsigned long long detectiontime;
   unsigned short srcport;
   unsigned short dstport;
   unsigned char protocol[PROTOCOL_NAME_LEN];
   unsigned char srcip[IP_ADDR_LEN];
   unsigned char dstip[IP_ADDR_LEN];
   unsigned char rulename[RULE_NAME_LEN];
+  unsigned char rulecontent[RULE_CONTENT_LEN];
 } DangerPacket; 
 
 //DangerPacketQueue
