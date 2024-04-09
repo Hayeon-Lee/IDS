@@ -48,7 +48,7 @@ void enqueuePacket(PacketQueue *queue, Packet *value, int size){
     pthread_mutex_unlock(&(queue->mutex));
     return;
   }
-
+  
   queue->rear = ((queue->rear)+1)%MAX_QUEUE_SIZE;
   queue->packet[queue->rear] = value;
   queue->count += 1;
@@ -62,10 +62,11 @@ Packet * dequeuePacket(PacketQueue *queue){
   if (queue->count <= 0) {
     printf("Queue가 비어있습니다.");
     pthread_mutex_unlock(&(queue->mutex));
-    return;
+    return NULL;
   }
-  
-  Packet *item = queue->packet[queue->front];
+
+  Packet *item;
+  item = queue->packet[queue->front];
   queue->front = ((queue->front)+1)%MAX_QUEUE_SIZE;
   queue->count -= 1;
   pthread_mutex_unlock(&(queue->mutex));
