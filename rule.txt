@@ -4,3 +4,4 @@ Rule3|srcip=80.203.58.106;pattern=qbm(~y6
 Rule4|srcport=40;dstport=40;srcmac=50:E6:01:86:9D:38;srcip=55.104.67.197;pattern=*k09w9a
 Rule5|srcip=10.0.80.112
 Rule6|pattern=aaa
+Rule7|
