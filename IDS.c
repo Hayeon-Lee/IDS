@@ -10,6 +10,7 @@
 #include "queue.h"
 #include "readpacket.h"
 #include "detectpacket.h"
+#include "logpacket.h"
 
 void handleSignal(int signal);
 
@@ -17,6 +18,7 @@ void handleSignal(int signal);
 void makeRule(Rule* IDSRule);
 void *makeReadThread(void* packetqueue);
 void *makeDetectThread(void *detectstruct);
+void *makeLogThread(void *dangerpacketqueue);
 
 int check_rule_valid(char *content, Rule *IDSRule);
 int return_rule_type(char *prop);
@@ -52,6 +54,9 @@ int main() {
   int detect_thr_id1 = pthread_create(&DetectThread1, NULL, makeDetectThread, (void *)&detectstruct);
   int detect_thr_id2 = pthread_create(&DetectThread2, NULL, makeDetectThread, (void *)&detectstruct);
 
+  pthread_t LogThread;
+  int log_thr_id = pthread_create(&LogThread, NULL, makeLogThread, (void *)&dangerpacketqueue);
+
   //pthread_join(read_thr_id, NULL); //에러남
   //pthread_join(detect_thr_id, NULL);
 
@@ -70,6 +75,11 @@ void *makeReadThread(void *packetqueue) {
 
 void *makeDetectThread(void *detectstruct) {
   startDetectThread(detectstruct);
+  return (void *)0;
+}
+
+void *makeLogThread(void *dangerpacketqueue) {
+  start_logthread(dangerpacketqueue);
   return (void *)0;
 }
 
