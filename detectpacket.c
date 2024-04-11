@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "queue.h"
 #include "detectpacket.h"
@@ -12,6 +13,7 @@
 int startDetectThread(void * detectstruct) { 
   PacketQueue *pkt_queue = ((DetectStruct *)detectstruct)->packetqueue;
   Rule rule = ((DetectStruct *)detectstruct)->rulestruct;
+  DangerPacketQueue *danger_pkt_queue = ((DetectStruct *)detectstruct)->dangerpacketqueue;
 
   while(1){
     sleep(1);
@@ -21,10 +23,18 @@ int startDetectThread(void * detectstruct) {
     if (item) {
       PacketNode node;
       node = makePacketNode(item->packet, item->caplen);
-      int rulenum = checkNode(node, rule);
 
+      //지원되지 않는 프로토콜
+      if (node.protocol == -1) {
+        DangerPacket * dangernode = makeDangerPacket(node, "not support", "not support");
+        enqueueDangerPacket(danger_pkt_queue, dangernode);
+        continue;
+      }
+
+      int rulenum = checkNode(node, rule);
       if (rulenum != -1) {
-          
+         DangerPacket *dangernode = makeDangerPacket(node, rule.rules[rulenum].name, rule.rules[rulenum].content ); 
+         enqueueDangerPacket(danger_pkt_queue, dangernode);
       } 
     }
   }
@@ -63,10 +73,12 @@ PacketNode makePacketNode (u_char *packet, int caplen) {
 
       //TCP
       if (protocol == 6 && caplen >= 54) {
+        node.protocol = 6;
         readTCP(packet, &node);
       }
       //UDP
       if (protocol == 17 && caplen >= 42) {
+        node.protocol = 17;
         readUDP(packet, &node);
       }
       //ICMP
@@ -244,4 +256,57 @@ int match_pattern(char *payload, char *pattern, int size_payload){
   }
  
   return -1;
+}
+
+DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char * rulecontent) {
+  DangerPacket * dangernode = (DangerPacket *)malloc(sizeof(DangerPacket));
+  //지원되지 않는 패킷  
+  if (node.protocol == -1) {
+    strcpy(dangernode->rulename, rulename);
+    strcpy(dangernode->rulecontent, rulecontent);
+    strcpy(dangernode->protocol, "not support");
+    return dangernode;
+  }
+
+  strcpy(dangernode->rulename, rulename);
+  strcpy(dangernode->rulecontent, rulecontent);
+
+  if (node.srcip!=-1) {
+    char tmpsrcip[16];
+    struct in_addr addr;
+
+    addr.s_addr = htonl(node.srcip);
+    inet_ntop(AF_INET, &addr, tmpsrcip, INET_ADDRSTRLEN);
+
+    strcpy(dangernode->srcip, tmpsrcip);
+  }
+
+  if (node.dstip!=-1){
+    char tmpdstip[16];
+    struct in_addr addr;
+
+    addr.s_addr = htonl(node.dstip);
+    inet_ntop(AF_INET, &addr, tmpdstip, INET_ADDRSTRLEN);
+    
+    strcpy(dangernode->dstip, tmpdstip);
+  }
+
+  if (node.protocol!=-1){
+    if (node.protocol == 6) {
+      strcpy(dangernode->protocol, "tcp");
+    }
+    if (node.protocol == 17) {
+      strcpy(dangernode->protocol, "udp");
+    } 
+  }
+
+  if (node.srcport != -1) {
+    dangernode->srcport = node.srcport;
+  }
+
+  if (node.dstport != -1) {
+    dangernode->dstport = node.dstport;
+  }
+
+  return dangernode;
 }
