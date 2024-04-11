@@ -101,7 +101,7 @@ DangerPacket * dequeueDangerPacket(DangerPacketQueue *queue) {
   pthread_mutex_lock(&(queue->mutex));
 
   if(queue->count <= 0) {
-    printf("DangerQueue가 비어있습니다.\n");
+//    printf("DangerQueue가 비어있습니다.\n");
     pthread_mutex_unlock(&(queue->mutex));
     return NULL;
   }
