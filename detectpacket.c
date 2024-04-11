@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "queue.h"
 #include "detectpacket.h"
@@ -260,6 +261,15 @@ int match_pattern(char *payload, char *pattern, int size_payload){
 
 DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char * rulecontent) {
   DangerPacket * dangernode = (DangerPacket *)malloc(sizeof(DangerPacket));
+  char detecttime[30];
+  time_t current_time;
+  time(&current_time);
+
+  struct tm *local_time = localtime(&current_time);
+  strftime(detecttime, sizeof(detecttime), "%y%m%d_%H:%M:%S", local_time);
+  strcpy(dangernode->detecttime, detecttime);
+  
+
   //지원되지 않는 패킷  
   if (node.protocol == -1) {
     strcpy(dangernode->rulename, rulename);
