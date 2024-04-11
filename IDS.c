@@ -97,7 +97,8 @@ void makeRule(Rule* IDSRule) {
     if (pline && IDSRule->cnt < MAX_RULE_CNT) {
 
       char *content;
-      char *name = strtok_r(pline, "|", &content);
+      char *name = strtok_r(pline, "|", &content);      
+
       strcpy(IDSRule->rules[IDSRule->cnt].content, content);      
 
       if(name == NULL){
@@ -108,8 +109,8 @@ void makeRule(Rule* IDSRule) {
         int result = check_rule_valid(content, IDSRule);
  
         if (result == 1 && IDSRule->rules[IDSRule->cnt].pattern[0] != '\0'){
-	  strcpy(IDSRule->rules[IDSRule->cnt].name, name);
-	  printf("%s|%s\n", IDSRule->rules[IDSRule->cnt].name, IDSRule->rules[IDSRule->cnt].content);
+    strcpy(IDSRule->rules[IDSRule->cnt].name, name);
+    printf("%s|%s\n", IDSRule->rules[IDSRule->cnt].name, IDSRule->rules[IDSRule->cnt].content);
           IDSRule->cnt += 1;
         }
       }
@@ -142,7 +143,13 @@ int check_rule_valid(char *content, Rule *IDSRule){
       struct in_addr ip;
       char tmp[1461];
       strcpy(tmp, value);
-      tmp[strlen(value)+1] = '\0';
+      
+      int length = strlen(tmp);
+      for (int i=0; i<length; i++) {
+        if (tmp[i] == 0x0a) {
+          tmp[i] = 0x00;
+        }
+      }
 
       if(prop) {
         type = return_rule_type(prop);
@@ -150,29 +157,46 @@ int check_rule_valid(char *content, Rule *IDSRule){
         switch (type) {
           case 1: //srcmac 
             //strcpy(IDSRule->rules[IDSRule->cnt].srcmac, tmp);
-	    
+      
             break;
           case 2: //dstmac
             //strcpy(IDSRule->rules[IDSRule->cnt].dstmac, tmp);
             break;
           case 3: //srcip
-	    ip.s_addr = inet_addr(value);
-	    ip.s_addr = ntohl(ip.s_addr);
+            ip.s_addr = inet_addr(value);
+            ip.s_addr = ntohl(ip.s_addr);
+            
+            if (ip.s_addr < 0 || ip.s_addr > 4294967295) {
+              return -1;
+            }
+
             IDSRule->rules[IDSRule->cnt].srcip = ip.s_addr;
             break;
           case 4: //dstip
-	    ip.s_addr = inet_addr(value);
-	    ip.s_addr = ntohl(ip.s_addr);
+            ip.s_addr = inet_addr(value);
+            ip.s_addr = ntohl(ip.s_addr);
+            
+            if (ip.s_addr < 0 || ip.s_addr > 4294967295) {
+              return -1;
+            }
+
             IDSRule->rules[IDSRule->cnt].dstip = ip.s_addr;
             break;
           case 5: //srcport
+            if (atoi(tmp)<0 || atoi(tmp) > 65535){
+              return -1;
+            } 
             IDSRule->rules[IDSRule->cnt].srcport = atoi(tmp);
             break;
           case 6: //dstport
+            
+            if (atoi(tmp)<0 || atoi(tmp) > 65535){
+              return -1;
+            } 
             IDSRule->rules[IDSRule->cnt].dstport = atoi(tmp);
             break;
           case 7: //pattern
-            strcpy(IDSRule->rules[IDSRule->cnt].pattern, value);
+            strcpy(IDSRule->rules[IDSRule->cnt].pattern, tmp);
             break;
           case -1:
             return -1;
