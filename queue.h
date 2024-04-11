@@ -25,12 +25,12 @@ typedef struct {
   unsigned short dstmac[ETH_ALEN];
   unsigned short srcmac[ETH_ALEN];
   
-  unsigned int srcip; //host to network 변환됨
-  unsigned int dstip; //host to network 변환됨
-  unsigned short protocol;
+  long long srcip; //host to network 변환됨
+  long long dstip; //host to network 변환됨
+  int  protocol;
 
-  unsigned short srcport; //host to network 변환됨
-  unsigned short dstport; //host to network 변환됨
+  int srcport; //host to network 변환됨
+  int dstport; //host to network 변환됨
 
   char pattern[1461];
 } RuleDetail;
@@ -76,7 +76,7 @@ typedef struct {
 typedef struct {
   int front, rear;
   int count;
-  DangerPacket items[MAX_QUEUE_SIZE];
+  DangerPacket *items[MAX_QUEUE_SIZE];
 } DangerPacketQueue;
 
 typedef struct {
@@ -94,7 +94,7 @@ void enqueuePacket(PacketQueue *queue, Packet *value, int size);
 Packet *dequeuePacket(PacketQueue *queue);
 
 void initDangerPacketQueue(DangerPacketQueue *queue);
-void enqueueDangerPacket(DangerPacketQueue *queue, DangerPacket value);
-void dequeueDangerPacket(DangerPacketQueue *queue);
+void enqueueDangerPacket(DangerPacketQueue *queue, DangerPacket *value);
+DangerPacket* dequeueDangerPacket(DangerPacketQueue *queue);
 
 #endif
