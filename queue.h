@@ -70,6 +70,7 @@ typedef struct {
   unsigned char dstip[IP_ADDR_LEN];
   unsigned char rulename[RULE_NAME_LEN];
   unsigned char rulecontent[RULE_CONTENT_LEN];
+  unsigned char detecttime[30];
 } DangerPacket; 
 
 //DangerPacketQueue
