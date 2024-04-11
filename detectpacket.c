@@ -9,7 +9,6 @@
 #include "queue.h"
 #include "detectpacket.h"
 
-
 int startDetectThread(void * detectstruct) { 
   PacketQueue *pkt_queue = ((DetectStruct *)detectstruct)->packetqueue;
   Rule rule = ((DetectStruct *)detectstruct)->rulestruct;
@@ -22,8 +21,11 @@ int startDetectThread(void * detectstruct) {
     if (item) {
       PacketNode node;
       node = makePacketNode(item->packet, item->caplen);
-      printf("%d\n", node.protocol);
-      RuleDetail detail = checkNode(node, rule);
+      int rulenum = checkNode(node, rule);
+
+      if (rulenum != -1) {
+          
+      } 
     }
   }
 }
@@ -62,16 +64,14 @@ PacketNode makePacketNode (u_char *packet, int caplen) {
       //TCP
       if (protocol == 6 && caplen >= 54) {
         readTCP(packet, &node);
-        printf("tcp입니다\n");
       }
       //UDP
       if (protocol == 17 && caplen >= 42) {
         readUDP(packet, &node);
-        printf("udp입니다\n");  
       }
       //ICMP
       if (protocol == 1 && caplen >= 42) {
-        printf("icmp입니다.\n");
+        printf("ICMP\n");
       }
     }
   }
@@ -130,17 +130,118 @@ int readTCP(u_char *packet, PacketNode *node) {
     node->flag_payload = 1;
     int payload_size = (node->length) - 54;
     node->size_payload = payload_size;
-    memcpy(node->payload, (packet+53), payload_size);
+    
+    for (int i=0; i<payload_size; i++) {
+      node->payload[i] = packet[53+i];
+    }
   }    
 
   return 0;
 }
 
-RuleDetail checkNode(PacketNode node, Rule rule){
-  /*
-  1. rule과 비교한다.
-  2. rule에 걸리면 dangerpacket을 생성한다.
-  3. dangerpacket을 반환한다. 
-  */
-  return rule.rules[0];
+int checkNode(PacketNode node, Rule rule){
+
+  //정책에는 pattern이 반드시 있으므로 payload가 0이면 검사하지 않음
+  if (node.flag_payload == 0) {
+    return -1;
+  }
+
+  int i=0;
+  
+  short flag=0;
+  short result=0;
+  
+   
+  //flag 는 첫 번째로 정책을 어겼는지 확인 (result = 1 로 초기화)
+  //정책과 노드의 값이 모두 있는데 다르면 더 이상 확인할 필요 없음 
+  for(i=0; i<rule.cnt; i++) {
+    
+     //패턴 검사
+    if (match_pattern(node.payload, rule.rules[i].pattern, node.size_payload)==1) {
+      if (flag == 0) {
+        flag = 1;
+        result = 1;
+      }
+      else result &= 1;
+    }
+    else continue;   
+  
+    if (rule.rules[i].srcip != -1 && node.srcip != -1){
+      if (rule.rules[i].srcip == node.srcip) {
+        if (flag == 0) {
+            flag = 1;
+            result = 1;
+        }
+        else result &= 1;
+      }
+      else continue;  
+    }
+    if (rule.rules[i].dstip != -1 && node.dstip != -1){
+      if (rule.rules[i].dstip == node.dstip){
+        if (flag == 0) {
+            flag = 1;
+            result = 1;
+        }
+        else result &= 1;
+      }
+      else continue;
+    }
+    if (rule.rules[i].srcport != -1 && node.srcport != -1) {
+      if (rule.rules[i].srcport == node.srcport) {
+        if (flag == 0) {
+            flag = 1;
+            result = 1;
+        }
+        else result &= 1;
+      }
+      else continue;
+    }
+    if (rule.rules[i].dstport != -1 && node.dstport != -1){
+      if (rule.rules[i].dstport == node.dstport) {
+        if (flag == 0) {
+            flag = 1;
+            result = 1;
+        }
+        else result &= 1;
+      }
+      else continue;  
+    }   
+    if (result == 1) {
+      printf("위험해요~\n");
+      return i;
+    }
+    else {
+      flag = 0;
+      result = 0;
+    }
+  } 
+      
+   
+  return -1;
+}
+
+int match_pattern(char *payload, char *pattern, int size_payload){
+  if (strlen(pattern)>size_payload) {
+    return -1;
+  }
+  
+  for(int i=0; i<size_payload; i++) {
+    int j = 0;
+    int flag = 0;
+
+    if (payload[i] == pattern[j]) {
+      for(j=0; j<strlen(pattern); j++) {
+        if (payload[i+j] != pattern[j]) {
+            flag = 1;
+            break;
+        }
+        else continue;
+      }
+      if (flag == 0) {
+        return 1;
+      }
+    }
+  }
+ 
+  return -1;
 }
