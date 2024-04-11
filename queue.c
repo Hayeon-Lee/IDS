@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "queue.h"
+#include "detectpacket.h"
 
 void initQueue(CircularQueue *queue) {
   queue->front = 0;
@@ -80,7 +81,7 @@ void initDangerPacketQueue(DangerPacketQueue *queue) {
   queue->count = 0;
 }
 
-void enqueueDangerPacket(DangerPacketQueue *queue,DangerPacket value) {
+void enqueueDangerPacket(DangerPacketQueue *queue,DangerPacket *value) {
   if (queue->count >= MAX_QUEUE_SIZE) {
     printf("DangerQueue가 꽉 차 드롭합니다.\n");
     return;
@@ -91,10 +92,10 @@ void enqueueDangerPacket(DangerPacketQueue *queue,DangerPacket value) {
   queue->count += 1;
 }
 
-void dequeueDangerPacket(DangerPacketQueue *queue) {
+DangerPacket * dequeueDangerPacket(DangerPacketQueue *queue) {
   if(queue->count <= 0) {
     printf("DangerQueue가 비어있습니다.\n");
-    return;
+    return NULL;
   }
   queue->front = ((queue->front+1))%MAX_QUEUE_SIZE;
   queue->count -= 1;
