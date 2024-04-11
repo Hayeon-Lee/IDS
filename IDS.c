@@ -41,7 +41,7 @@ int main() {
   DetectStruct detectstruct;
   detectstruct.rulestruct = IDSRule;
   detectstruct.packetqueue = &packetqueue;
-  detectstruct.dangerpacketqueue = dangerpacketqueue;
+  detectstruct.dangerpacketqueue = &dangerpacketqueue;
 
   pthread_t ReadThread;
   int read_thr_id = pthread_create(&ReadThread, NULL, makeReadThread,(void *)&packetqueue);
