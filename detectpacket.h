@@ -35,4 +35,5 @@ int readTCP(u_char *packet, PacketNode *node);
 
 int checkNode(PacketNode node, Rule rule);
 int match_pattern(char *payload, char *pattern, int size_payload);
+DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char *rulecontent); 
 #endif
