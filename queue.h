@@ -76,13 +76,14 @@ typedef struct {
 typedef struct {
   int front, rear;
   int count;
+  pthread_mutex_t mutex;
   DangerPacket *items[MAX_QUEUE_SIZE];
 } DangerPacketQueue;
 
 typedef struct {
   Rule rulestruct; //정책
   PacketQueue *packetqueue; //패킷큐
-  DangerPacketQueue dangerpacketqueue; //위험패킷큐
+  DangerPacketQueue *dangerpacketqueue; //위험패킷큐
 } DetectStruct;
 
 void initQueue(CircularQueue *queue);
