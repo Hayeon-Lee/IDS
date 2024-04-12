@@ -8,10 +8,10 @@
 #include "queue.h"
 #include "logpacket.h"
 
-int start_logthread(void *dangerpacketqueue) {
+void *start_logthread(void *logstruct) {
   LogQueue logqueue;
   initLogQueue(&logqueue);
-  DangerPacketQueue *danger_pkt_queue = (DangerPacketQueue*)dangerpacketqueue;
+  DangerPacketQueue *danger_pkt_queue = ((LogStruct*)logstruct)->dangerpacketqueue;
   
   const char *dir_name = "logs";
   //log directory 존재 안 할 시 생성해줌
@@ -21,33 +21,28 @@ int start_logthread(void *dangerpacketqueue) {
     printf("directory create");
   }
   
-  /*
-  dangerpacketqueue가 절반 이상 찼을 때(혹은 1분에 한 개씩)
-  파일을 새로 만들고, queue에서 뽑아 저장한다.
-  */
-
-  
   time_t start_time;
   time(&start_time);
 
   while(1) {
-    sleep(30);
     time_t current_time;
     time(&current_time);
-    double elapsed_time = difftime(current_time, start_time)/60.0;
+    //double elapsed_time = difftime(current_time, start_time)/60.0;
+    double elapsed_time = current_time - start_time; //Sec
     
-    printf("흐른시간: %d\n", (int)elapsed_time);
-
     DangerPacket * dangerpacket = dequeueDangerPacket(danger_pkt_queue);
+
     if (dangerpacket != NULL) {
       enqueueLog(&logqueue, dangerpacket);
     }
 
-    if ((logqueue.count > (MAX_QUEUE_SIZE/2))){
+    if ((logqueue.count > (MAX_LOG_QUEUE_SIZE/2))){
+      printf("QUEUE사이즈: %d\n", MAX_LOG_QUEUE_SIZE/2);
+      start_time = current_time;
       makeLogFile(&logqueue);
     }
-    else if ((int)elapsed_time >= 1 && (int)elapsed_time%1== 0) { 
-      printf("%d %d\n", logqueue.count, (int)elapsed_time);
+    else if (logqueue.count > 0 && elapsed_time >= 5) {
+      printf("개수와 시간: %d %d\n", logqueue.count, (int)elapsed_time);
       start_time = current_time;
       makeLogFile(&logqueue);
     }
@@ -67,7 +62,7 @@ void makeLogFile(LogQueue *queue){
   char file_time[30];
   strftime(file_time, sizeof(file_time), "%y%m%d_%H%M%S", local_time);
   strcat(file_name, file_time);
-    printf("%s\n", file_name);
+  printf("파일 이름: %s\n", file_name);
 
   FILE *logfile = fopen(file_name, "w");
   if (logfile == NULL) {
@@ -87,24 +82,23 @@ void initLogQueue(LogQueue *queue) {
 }
 
 void enqueueLog(LogQueue *queue, DangerPacket *value) {
-  if (queue->count >= MAX_QUEUE_SIZE) {
-    printf("LogQueue가 꽉 차 드롭합니다.\n");
+  if (queue->count >= MAX_LOG_QUEUE_SIZE) {
     return;
   }
-  queue->rear = ((queue->rear)+1)%MAX_QUEUE_SIZE;
+  queue->rear = ((queue->rear)+1)%MAX_LOG_QUEUE_SIZE;
   queue->packet[queue->rear] = value;
+  printf("큐의 끝과 포트번호%d %d %s\n", queue->rear, queue->packet[queue->rear]->srcport, queue->packet[queue->rear]->rulename);
   queue->count += 1;
 }
 
 DangerPacket * dequeueLog(LogQueue *queue) {
   if (queue->count <= 0) {
-    printf("LogQueue가 비어있습니다.\n");
     return NULL;
   }
   DangerPacket *item;
 
   item = queue->packet[queue->front];
-  queue->front = ((queue->front+1))%MAX_QUEUE_SIZE;
+  queue->front = ((queue->front+1))%MAX_LOG_QUEUE_SIZE;
   queue->count -= 1;
   return item;
 }
@@ -113,9 +107,10 @@ void writeLog(LogQueue *queue, FILE *logfile){
   for (int i=0; i<queue->count; i++){
     DangerPacket * packet = dequeueLog(queue);
     if (packet != NULL) {
-      char logstring[300]; 
-      strcpy(logstring, returnLogString(packet));
+      char * logstring = returnLogString(packet);
+      free(packet);
       fputs(logstring, logfile);
+      free(logstring); 
     }
   }
 }
@@ -124,6 +119,7 @@ char * returnLogString(DangerPacket * packet){
   char *logstring = malloc(300 * sizeof(char));
   char partial[40] = "          |          ";
   char notsp[15] = "not support";
+  char overflow[15] = "overflow";
   char arrow[5] = "->";
   char portpartial[2] = ":";
 
@@ -142,6 +138,14 @@ char * returnLogString(DangerPacket * packet){
   //not support
   if (strcmp(packet->protocol, notsp)==0) {
     strcat(logstring, notsp);
+    strcat(logstring, "\n");
+    return logstring;
+  }
+
+  //overflow
+  if (strcmp(packet->protocol, overflow)==0){
+    strcat(logstring, overflow);
+    strcat(logstring, "\n");
     return logstring;
   }
 
