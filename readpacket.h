@@ -6,8 +6,8 @@
 #include <dirent.h>
 #include "queue.h"
 
-int start_readthread(void *packetqueue);
+void *start_readthread(void *readstruct);
 int check_extension(const char *filename);
-void accessPacketFiles(DIR *directory, char * directory_path, void * packetqueue);
+void accessPacketFiles(DIR *directory, char * directory_path, PacketQueue* packetqueue, DangerPacketQueue *dangerpacketqueue);
 
 #endif
