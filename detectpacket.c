@@ -11,14 +11,12 @@
 #include "queue.h"
 #include "detectpacket.h"
 
-int startDetectThread(void * detectstruct) { 
+void *startDetectThread(void * detectstruct) { 
   PacketQueue *pkt_queue = ((DetectStruct *)detectstruct)->packetqueue;
   Rule rule = ((DetectStruct *)detectstruct)->rulestruct;
   DangerPacketQueue *danger_pkt_queue = ((DetectStruct *)detectstruct)->dangerpacketqueue;
 
   while(1){
-    sleep(1);
-
     Packet *item = dequeuePacket(pkt_queue);
 
     if (item) {
@@ -33,10 +31,13 @@ int startDetectThread(void * detectstruct) {
       }
 
       int rulenum = checkNode(node, rule);
-      if (rulenum != -1) {
+      if (rulenum != -1) { //정책 위반
          DangerPacket *dangernode = makeDangerPacket(node, rule.rules[rulenum].name, rule.rules[rulenum].content ); 
          enqueueDangerPacket(danger_pkt_queue, dangernode);
-      } 
+      }
+      else { //정책 통과(=더 이상 필요 없는 패킷)
+        free(item);
+      }
     }
   }
 }
@@ -44,6 +45,8 @@ int startDetectThread(void * detectstruct) {
 void initPacketNode(PacketNode *node){
   node->length = -1;
   
+  node->dstmac[0] = '\0';
+  node->srcmac[0] = '\0';
   node->ethertype = -1;
 
   node->srcip = -1;
@@ -58,6 +61,8 @@ void initPacketNode(PacketNode *node){
   node->size_payload = 0;
 }
 
+// TODO Parsing...
+// Decode..
 PacketNode makePacketNode (u_char *packet, int caplen) { 
   PacketNode node;
   initPacketNode(&node);
@@ -72,6 +77,7 @@ PacketNode makePacketNode (u_char *packet, int caplen) {
     if (type == ETHERTYPE_IP && caplen >= 34) {
       int protocol = readIPV4(packet, &node);
 
+      // TODO define.
       //TCP
       if (protocol == 6 && caplen >= 54) {
         node.protocol = 6;
@@ -98,6 +104,7 @@ unsigned short readEthernet(u_char *packet, PacketNode *node ) {
   eth_header = (struct ether_header*)packet;
 
   node->ethertype = ntohs(eth_header->ether_type);
+
   memcpy(node->dstmac, eth_header->ether_dhost, ETH_ALEN);
   memcpy(node->srcmac, eth_header->ether_shost, ETH_ALEN);
 
@@ -280,6 +287,13 @@ DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char * rulecon
 
   strcpy(dangernode->rulename, rulename);
   strcpy(dangernode->rulecontent, rulecontent);
+
+  if (node.srcmac[0] != '\0') {
+    snprintf(dangernode->srcmac, 6, node.srcmac);
+  }
+  if (node.dstmac[0] != '\0') {
+    snprintf(dangernode->dstmac,6, node.dstmac);
+  }
 
   if (node.srcip!=-1) {
     char tmpsrcip[16];
