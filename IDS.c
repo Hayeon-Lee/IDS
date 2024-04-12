@@ -12,121 +12,25 @@
 #include "detectpacket.h"
 #include "logpacket.h"
 
-void handleSignal(int signal);
-
-//void readSettingFile(); //추후설정파일에 대해 알아보고 구현
-void makeRule(Rule* IDSRule);
-void *makeReadThread(void* packetqueue);
-void *makeDetectThread(void *detectstruct);
-void *makeLogThread(void *dangerpacketqueue);
-
-int check_rule_valid(char *content, Rule *IDSRule);
-int return_rule_type(char *prop);
-
-int main() { 
-  //Initialize Rule Structure
-  Rule IDSRule; 
-  IDSRule.cnt = 0;
-
-  //정책 파일을 읽고 저장한다.
-  makeRule(&IDSRule);
-
-  //Packet Queue 선언 및 초기화
-  PacketQueue packetqueue;
-  initPacketQueue(&packetqueue);
-
-  //Danger Packet Queue 선언 및 초기화
-  DangerPacketQueue dangerpacketqueue;
-  initDangerPacketQueue(&dangerpacketqueue);
-
-  //Detect Thread에게 넘겨줄 구조체 선언 및 초기화
-  DetectStruct detectstruct;
-  detectstruct.rulestruct = IDSRule;
-  detectstruct.packetqueue = &packetqueue;
-  detectstruct.dangerpacketqueue = &dangerpacketqueue;
-
-  pthread_t ReadThread;
-  int read_thr_id = pthread_create(&ReadThread, NULL, makeReadThread,(void *)&packetqueue);
-
-  pthread_t DetectThread1;
-  pthread_t DetectThread2;
-
-  int detect_thr_id1 = pthread_create(&DetectThread1, NULL, makeDetectThread, (void *)&detectstruct);
-  int detect_thr_id2 = pthread_create(&DetectThread2, NULL, makeDetectThread, (void *)&detectstruct);
-
-  pthread_t LogThread;
-  int log_thr_id = pthread_create(&LogThread, NULL, makeLogThread, (void *)&dangerpacketqueue);
-
-  //pthread_join(read_thr_id, NULL); //에러남
-  //pthread_join(detect_thr_id, NULL);
-
-   signal(SIGINT, handleSignal);      
-   for(;;) {
-    fflush(stdout);
-    sleep(1);
-   }
-}
-
-void *makeReadThread(void *packetqueue) { 
-  //printf("스레드 생성 완료.");
-  start_readthread(packetqueue);    
-  return (void *)0;
-}
-
-void *makeDetectThread(void *detectstruct) {
-  startDetectThread(detectstruct);
-  return (void *)0;
-}
-
-void *makeLogThread(void *dangerpacketqueue) {
-  start_logthread(dangerpacketqueue);
-  return (void *)0;
-}
-
 void handleSignal(int signal) {
-  if (signal==SIGINT) {
+  if (signal==SIGQUIT) {
+  //  *end_flag = 0;
     printf("프로그램을 종료합니다.\n");  
     exit(0);
   }
 }
 
-void makeRule(Rule* IDSRule) {
-  FILE * rulefile = fopen("./conf/rule.txt", "r");
-
-  if (rulefile == NULL) {
-    printf("정책 파일 열기 실패.\n");
-    handleSignal(2);
-  }
-
-  char line[RULE_CONTENT_LEN];
-  char *pline;
-
-  while (!feof(rulefile)){
-    pline = fgets(line, RULE_CONTENT_LEN, rulefile);
-
-    if (pline && IDSRule->cnt < MAX_RULE_CNT) {
-
-      char *content;
-      char *name = strtok_r(pline, "|", &content);      
-
-      strcpy(IDSRule->rules[IDSRule->cnt].content, content);      
-
-      if(name == NULL){
-        printf("pipeline이 없습니다. 무시합니다.\n");
-        continue;
-      }
-      else {
-        int result = check_rule_valid(content, IDSRule);
- 
-        if (result == 1 && IDSRule->rules[IDSRule->cnt].pattern[0] != '\0'){
-    strcpy(IDSRule->rules[IDSRule->cnt].name, name);
-    printf("%s|%s\n", IDSRule->rules[IDSRule->cnt].name, IDSRule->rules[IDSRule->cnt].content);
-          IDSRule->cnt += 1;
-        }
-      }
-    }
-  }
-  fclose(rulefile);
+int return_rule_type(char *prop){
+  // TODO return code define.
+  if(strcmp(prop, "srcmac")==0) return 1;
+  if(strcmp(prop, "dstmac")==0) return 2;
+  if(strcmp(prop, "srcip")==0) return 3;
+  if(strcmp(prop, "dstip")==0) return 4;
+  if(strcmp(prop, "srcport")==0) return 5;
+  if(strcmp(prop, "dstport")==0) return 6;
+  if(strcmp(prop, "pattern")==0) return 7;
+  
+  return -1;
 }
 
 int check_rule_valid(char *content, Rule *IDSRule){
@@ -165,17 +69,11 @@ int check_rule_valid(char *content, Rule *IDSRule){
         type = return_rule_type(prop);
         
         switch (type) {
-          case 1: //srcmac 
-            //strcpy(IDSRule->rules[IDSRule->cnt].srcmac, tmp);
-      
-            break;
-          case 2: //dstmac
-            //strcpy(IDSRule->rules[IDSRule->cnt].dstmac, tmp);
-            break;
           case 3: //srcip
             ip.s_addr = inet_addr(value);
             ip.s_addr = ntohl(ip.s_addr);
             
+            // TODO MAXINT 뭐시기
             if (ip.s_addr < 0 || ip.s_addr > 4294967295) {
               return -1;
             }
@@ -219,14 +117,93 @@ int check_rule_valid(char *content, Rule *IDSRule){
   return -1; //처리 불가능한 패킷
 }
 
-int return_rule_type(char *prop){
-  if(strcmp(prop, "srcmac")==0) return 1;
-  if(strcmp(prop, "dstmac")==0) return 2;
-  if(strcmp(prop, "srcip")==0) return 3;
-  if(strcmp(prop, "dstip")==0) return 4;
-  if(strcmp(prop, "srcport")==0) return 5;
-  if(strcmp(prop, "dstport")==0) return 6;
-  if(strcmp(prop, "pattern")==0) return 7;
+void makeRule(Rule* IDSRule) {
+  FILE * rulefile = fopen("./conf/rule.txt", "r");
+
+  if (rulefile == NULL) {
+    printf("정책 파일 열기 실패.\n");
+    handleSignal(2);
+  }
+
+  char line[RULE_CONTENT_LEN];
+  char *pline;
+
+  while (!feof(rulefile)){
+    pline = fgets(line, RULE_CONTENT_LEN, rulefile);
+
+    if (pline && IDSRule->cnt < MAX_RULE_CNT) {
+
+      char *content;
+      char *name = strtok_r(pline, "|", &content);      
+
+      strcpy(IDSRule->rules[IDSRule->cnt].content, content);      
+
+      if(name == NULL){
+        printf("pipeline이 없습니다. 무시합니다.\n");
+        continue;
+      }
+      else {
+        // TODO 이름 고민
+        int result = check_rule_valid(content, IDSRule);
+ 
+        if (result == 1 && IDSRule->rules[IDSRule->cnt].pattern[0] != '\0'){
+          strcpy(IDSRule->rules[IDSRule->cnt].name, name);
+          printf("%s|%s\n", IDSRule->rules[IDSRule->cnt].name, IDSRule->rules[IDSRule->cnt].content);
+          IDSRule->cnt += 1;
+        }
+      }
+    }
+  }
+  fclose(rulefile);
+}
+
+int main() { 
+  //Initialize Rule Structure
+  Rule IDSRule; 
+  IDSRule.cnt = 0;
+
+  //정책 파일을 읽고 저장한다.
+  makeRule(&IDSRule);
+
+  //Packet Queue 선언 및 초기화
+  PacketQueue packetqueue;
+  initPacketQueue(&packetqueue);
+
+  //Danger Packet Queue 선언 및 초기화
+  DangerPacketQueue dangerpacketqueue;
+  initDangerPacketQueue(&dangerpacketqueue);
+
+  //Read Thread에게 넘겨줄 구조체 선언 및 초기화
+  ReadStruct readstruct;
+  readstruct.packetqueue = &packetqueue;
+  readstruct.dangerpacketqueue = &dangerpacketqueue;
+
+  //Detect Thread에게 넘겨줄 구조체 선언 및 초기화
+  DetectStruct detectstruct;
+  detectstruct.rulestruct = IDSRule;
+  detectstruct.packetqueue = &packetqueue;
+  detectstruct.dangerpacketqueue = &dangerpacketqueue;
+    
+  LogStruct logstruct;
+  logstruct.dangerpacketqueue = &dangerpacketqueue;
+  int end_flag = 0;
+  logstruct.end_flag = &end_flag;
+
+  pthread_t ReadThread;
+  int read_thr_id = pthread_create(&ReadThread, NULL, start_readthread,(void *)&readstruct);
+
+  // TODO DetectTrhead 개수 config 파일로 설정
+  pthread_t DetectThread1;
+  pthread_t DetectThread2;
+
+  int detect_thr_id1 = pthread_create(&DetectThread1, NULL, startDetectThread, (void *)&detectstruct);
+  int detect_thr_id2 = pthread_create(&DetectThread2, NULL, startDetectThread, (void *)&detectstruct);
+
+  pthread_t LogThread;
+  int log_thr_id = pthread_create(&LogThread, NULL, start_logthread, (void *)&logstruct);
   
-  return -1;
+  pthread_join(LogThread, NULL);  
+  pthread_join(DetectThread1, NULL);
+  pthread_join(DetectThread2, NULL);
+  pthread_join(ReadThread, NULL); 
 }
