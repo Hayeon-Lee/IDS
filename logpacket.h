@@ -1,15 +1,15 @@
 #ifndef LOGPACKET_H
 #define LOGPACKET_H
 
-#define MAX_QUEUE_SIZE 128
+#define MAX_LOG_QUEUE_SIZE 1028
 
 typedef struct {
   int front, rear;
   int count;
-  DangerPacket *packet[MAX_QUEUE_SIZE];
+  DangerPacket *packet[MAX_LOG_QUEUE_SIZE];
 } LogQueue;
 
-int start_logthread(void *dangerpacketqueue);
+void *start_logthread(void *logstruct);
 void initLogQueue(LogQueue *queue);
 void enqueueLog(LogQueue *queue, DangerPacket *value);
 DangerPacket * dequeueLog(LogQueue *queue);
