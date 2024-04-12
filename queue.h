@@ -1,7 +1,8 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 
-#define MAX_QUEUE_SIZE 128 //임시값
+#define MAX_QUEUE_SIZE 1028 //임시값
+#define MAX_DANGER_QUEUE_SIZE 1028 //임시값
 
 #define PROTOCOL_NAME_LEN 5
 #define MAC_ADDR_LEN 18 
@@ -37,15 +38,9 @@ typedef struct {
 
 typedef struct {
   unsigned short cnt;
+  // TODO 전체 정책 개수만큼으로 동적 할당
   RuleDetail rules[MAX_RULE_CNT];
 } Rule;
-
-//Circular Queue Structure
-typedef struct {
-  int front, rear;
-  int count;
-  int data[MAX_QUEUE_SIZE]; 
-} CircularQueue;
 
 //PacketItem 
 typedef struct {
@@ -63,6 +58,8 @@ typedef struct {
 
 //DangerPacketItem
 typedef struct {
+  unsigned char srcmac[7];
+  unsigned char dstmac[7];
   unsigned short srcport;
   unsigned short dstport;
   unsigned char protocol[PROTOCOL_NAME_LEN];
@@ -78,8 +75,13 @@ typedef struct {
   int front, rear;
   int count;
   pthread_mutex_t mutex;
-  DangerPacket *items[MAX_QUEUE_SIZE];
+  DangerPacket *items[MAX_DANGER_QUEUE_SIZE];
 } DangerPacketQueue;
+
+typedef struct {
+  PacketQueue *packetqueue;
+  DangerPacketQueue *dangerpacketqueue;
+} ReadStruct;
 
 typedef struct {
   Rule rulestruct; //정책
@@ -87,12 +89,13 @@ typedef struct {
   DangerPacketQueue *dangerpacketqueue; //위험패킷큐
 } DetectStruct;
 
-void initQueue(CircularQueue *queue);
-void enqueue(CircularQueue *queue, int value);
-void dequeue(CircularQueue *queue);
+typedef struct {
+  DangerPacketQueue *dangerpacketqueue;
+  int *end_flag;
+} LogStruct;
 
 void initPacketQueue(PacketQueue *queue);
-void enqueuePacket(PacketQueue *queue, Packet *value, int size);
+int enqueuePacket(PacketQueue *queue, Packet *value, int size);
 Packet *dequeuePacket(PacketQueue *queue);
 
 void initDangerPacketQueue(DangerPacketQueue *queue);
