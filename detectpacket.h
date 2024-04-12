@@ -5,12 +5,13 @@
 #include <netinet/ether.h>
 #include <pcap.h>
 #include <netinet/in.h>
+#include <stdint.h>
 
 typedef struct {
   int length;
 
-  unsigned short dstmac[ETH_ALEN];
-  unsigned short srcmac[ETH_ALEN];
+  unsigned char dstmac[6];
+  unsigned char srcmac[6];
   unsigned short ethertype;
 
   unsigned int srcip; //host to network 변환됨
@@ -26,7 +27,7 @@ typedef struct {
 } PacketNode;
 
 void initPacketNode(PacketNode *node);
-int startDetectThread(void * detectstruct);
+void *startDetectThread(void * detectstruct);
 PacketNode makePacketNode(u_char *packet, int caplen);
 unsigned short readEthernet(u_char *packet, PacketNode *node);
 int readIPV4(u_char *packet, PacketNode *node);
