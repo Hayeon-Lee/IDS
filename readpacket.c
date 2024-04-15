@@ -70,9 +70,6 @@ void accessPacketFiles(DIR * directory,
     if (strcmp(entry -> d_name, ".") != 0 &&
         strcmp(entry -> d_name, "..") != 0) {
 
-#if 0
-      int ext_result = check_extension(entry -> d_name);
-#endif
       //확장자가 pcap인 파일만 진행
       if (check_extension(entry -> d_name)) {
         //파일 이름 합치기 
@@ -100,7 +97,6 @@ void accessPacketFiles(DIR * directory,
 
           //pcap file에서 한 줄 한 줄 읽어오기
           while ((result = pcap_next_ex(handle, & header, &packet)) == 1) {
-
             if ((header -> caplen) > 0) {
               Packet *value = (Packet *)malloc(sizeof(Packet));
               unsigned char *p_data = (unsigned char *)malloc(header->caplen);
