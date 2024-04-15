@@ -18,7 +18,6 @@ int enqueuePacket(PacketQueue *queue, Packet *value, int size){
     pthread_mutex_unlock(&(queue->mutex));
     return -1;
   }
-  
   queue->rear = ((queue->rear)+1)%MAX_QUEUE_SIZE;
   queue->packet[queue->rear] = value;
   queue->count += 1;
