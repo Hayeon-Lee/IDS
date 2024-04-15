@@ -4,6 +4,7 @@
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
+#include <sqlite3.h>
 
 #include "queue.h"
 #include "logpacket.h"
@@ -12,7 +13,8 @@ void *start_logthread(void *logstruct) {
   LogQueue logqueue;
   initLogQueue(&logqueue);
   DangerPacketQueue *danger_pkt_queue = ((LogStruct*)logstruct)->dangerpacketqueue;
-  
+  int *end_flag = ((LogStruct*)logstruct)->end_flag;
+
   const char *dir_name = "logs";
   //log directory 존재 안 할 시 생성해줌
   struct stat st;
@@ -24,24 +26,30 @@ void *start_logthread(void *logstruct) {
   time_t start_time;
   time(&start_time);
 
+  //int tmp = 0;
   while(1) {
+  #if 0
+    if (*end_flag == 1) {
+      printf("end_flag is changed\n");
+    }
+    #endif
+
     time_t current_time;
     time(&current_time);
     //double elapsed_time = difftime(current_time, start_time)/60.0;
-    double elapsed_time = current_time - start_time; //Sec
-    
-    DangerPacket * dangerpacket = dequeueDangerPacket(danger_pkt_queue);
+    double elapsed_time = current_time - start_time; //Sec    
 
+    DangerPacket * dangerpacket = dequeueDangerPacket(danger_pkt_queue);
     if (dangerpacket != NULL) {
       enqueueLog(&logqueue, dangerpacket);
     }
 
-    if ((logqueue.count > (MAX_LOG_QUEUE_SIZE/2))){
-      printf("QUEUE사이즈: %d\n", MAX_LOG_QUEUE_SIZE/2);
+    if ((logqueue.count > (MAX_LOG_QUEUE_SIZE*0.8))){
+      printf("QUEUE사이즈: %d\n", logqueue.count);
       start_time = current_time;
       makeLogFile(&logqueue);
     }
-    else if (logqueue.count > 0 && elapsed_time >= 5) {
+    else if (logqueue.count > 0 && elapsed_time >= 10) {
       printf("개수와 시간: %d %d\n", logqueue.count, (int)elapsed_time);
       start_time = current_time;
       makeLogFile(&logqueue);
@@ -62,7 +70,6 @@ void makeLogFile(LogQueue *queue){
   char file_time[30];
   strftime(file_time, sizeof(file_time), "%y%m%d_%H%M%S", local_time);
   strcat(file_name, file_time);
-  printf("파일 이름: %s\n", file_name);
 
   FILE *logfile = fopen(file_name, "w");
   if (logfile == NULL) {
@@ -72,6 +79,7 @@ void makeLogFile(LogQueue *queue){
   else {
     writeLog(queue, logfile);
     fclose(logfile);
+    save_log_in_sqlite3();
   }
 }
 
@@ -87,7 +95,6 @@ void enqueueLog(LogQueue *queue, DangerPacket *value) {
   }
   queue->rear = ((queue->rear)+1)%MAX_LOG_QUEUE_SIZE;
   queue->packet[queue->rear] = value;
-  printf("큐의 끝과 포트번호%d %d %s\n", queue->rear, queue->packet[queue->rear]->srcport, queue->packet[queue->rear]->rulename);
   queue->count += 1;
 }
 
@@ -104,7 +111,7 @@ DangerPacket * dequeueLog(LogQueue *queue) {
 }
 
 void writeLog(LogQueue *queue, FILE *logfile){
-  for (int i=0; i<queue->count; i++){
+  while (queue->count) {
     DangerPacket * packet = dequeueLog(queue);
     if (packet != NULL) {
       char * logstring = returnLogString(packet);
@@ -116,6 +123,8 @@ void writeLog(LogQueue *queue, FILE *logfile){
 }
 
 char * returnLogString(DangerPacket * packet){
+  return_query_string(packet);
+
   char *logstring = malloc(300 * sizeof(char));
   char partial[40] = "          |          ";
   char notsp[15] = "not support";
@@ -163,4 +172,34 @@ char * returnLogString(DangerPacket * packet){
   strcat(logstring, packet->rulecontent);
 
   return logstring;
+}
+
+int save_log_in_sqlite3(){
+  sqlite3 *db;
+
+  char *errMsg = 0;
+  int result;
+
+  const char *dbName = "logs.db";
+  result = sqlite3_open(dbName, &db);
+
+  if (result != SQLITE_OK){
+    printf("데이터베이스 열기 실패\n");
+    return 1;
+  }
+
+  else{
+    
+    sqlite3_close(db);
+    return 0;
+  }
+}
+
+char * return_query_string(DangerPacket *packet) {
+  char *querystring = malloc(300 * sizeof(char));
+  
+  if (strmp(packet->protocol, notsp)==0) {
+    snprintf(querystring, 300, "
+  }
+
 }
