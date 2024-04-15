@@ -12,12 +12,8 @@
 #include "detectpacket.h"
 #include "logpacket.h"
 
-void handleSignal(int signal) {
-  if (signal==SIGQUIT) {
-  //  *end_flag = 0;
-    printf("프로그램을 종료합니다.\n");  
-    exit(0);
-  }
+void handle_signal(int signum, siginfo_t *info, void *context) {
+  printf("^0^\n");
 }
 
 int return_rule_type(char *prop){
@@ -122,7 +118,6 @@ void makeRule(Rule* IDSRule) {
 
   if (rulefile == NULL) {
     printf("정책 파일 열기 실패.\n");
-    handleSignal(2);
   }
 
   char line[RULE_CONTENT_LEN];
@@ -201,9 +196,11 @@ int main() {
 
   pthread_t LogThread;
   int log_thr_id = pthread_create(&LogThread, NULL, start_logthread, (void *)&logstruct);
-  
-  pthread_join(LogThread, NULL);  
+
+  printf("======== 프로그램을 종료하려면 ctrl+c를 입력하세요.=========\n");
+
+  pthread_join(LogThread, NULL);
   pthread_join(DetectThread1, NULL);
   pthread_join(DetectThread2, NULL);
-  pthread_join(ReadThread, NULL); 
+  pthread_join(ReadThread, NULL);
 }
