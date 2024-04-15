@@ -17,9 +17,10 @@ void *startDetectThread(void * detectstruct) {
   DangerPacketQueue *danger_pkt_queue = ((DetectStruct *)detectstruct)->dangerpacketqueue;
 
   while(1){
-    Packet *item = dequeuePacket(pkt_queue);
 
+    Packet *item = dequeuePacket(pkt_queue);
     if (item) {
+    
       PacketNode node;
       node = makePacketNode(item->packet, item->caplen);
 
@@ -227,7 +228,7 @@ int checkNode(PacketNode node, Rule rule){
       else continue;  
     }   
     if (result == 1) {
-      printf("위험해요~\n");
+      // printf("위험해요~\n");
       return i;
     }
     else {
