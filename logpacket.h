@@ -17,4 +17,6 @@ DangerPacket * dequeueLog(LogQueue *queue);
 void makeLogFile(LogQueue *queue);
 void writeLog(LogQueue *queue, FILE *logfile);
 char * returnLogString(DangerPacket *packet);
+int save_log_in_sqlite3();
+char *return_query_string(DangerPacket *packet);
 #endif
