@@ -13,7 +13,7 @@
 
 #define RULE_NAME_LEN 16
 #define RULE_CONTENT_LEN 255
-#define MAX_RULE_CNT 10 //임시값
+#define MAX_RULE_CNT 15 //임시값
 
 #include <netinet/if_ether.h>
 #include <pthread.h>
