@@ -12,8 +12,14 @@
 #include "detectpacket.h"
 #include "logpacket.h"
 
-void handle_signal(int signum, siginfo_t *info, void *context) {
-  printf("^0^\n");
+int end_flag = 0;
+
+void handle_signal(int signal){
+  if (signal == SIGINT) {
+    printf("프로그램을 종료합니다\n");
+    end_flag = 1;
+    exit(0);
+  }
 }
 
 int return_rule_type(char *prop){
@@ -132,6 +138,11 @@ void makeRule(Rule* IDSRule) {
       char *name = strtok_r(pline, "|", &content);      
 
       strcpy(IDSRule->rules[IDSRule->cnt].content, content);      
+      for (int i=0; i<strlen(IDSRule->rules[IDSRule->cnt].content);i++){
+        if (IDSRule->rules[IDSRule->cnt].content[i] == 0x0a){
+          IDSRule->rules[IDSRule->cnt].content[i] = 0x00;
+        }
+      }
 
       if(name == NULL){
         printf("pipeline이 없습니다. 무시합니다.\n");
@@ -172,16 +183,17 @@ int main() {
   ReadStruct readstruct;
   readstruct.packetqueue = &packetqueue;
   readstruct.dangerpacketqueue = &dangerpacketqueue;
+  readstruct.end_flag = &end_flag;
 
   //Detect Thread에게 넘겨줄 구조체 선언 및 초기화
   DetectStruct detectstruct;
   detectstruct.rulestruct = IDSRule;
   detectstruct.packetqueue = &packetqueue;
   detectstruct.dangerpacketqueue = &dangerpacketqueue;
-    
+  detectstruct.end_flag = &end_flag;  
+
   LogStruct logstruct;
   logstruct.dangerpacketqueue = &dangerpacketqueue;
-  int end_flag = 0;
   logstruct.end_flag = &end_flag;
 
   pthread_t ReadThread;
@@ -198,6 +210,9 @@ int main() {
   int log_thr_id = pthread_create(&LogThread, NULL, start_logthread, (void *)&logstruct);
 
   printf("======== 프로그램을 종료하려면 ctrl+c를 입력하세요.=========\n");
+  
+  signal(SIGINT, handle_signal);
+  //for(;;){}
 
   pthread_join(LogThread, NULL);
   pthread_join(DetectThread1, NULL);
