@@ -1,6 +1,7 @@
 #include <netinet/udp.h>
 #include <netinet/tcp.h>
 #include <netinet/ip.h>
+#include <netinet/ip_icmp.h>
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -15,8 +16,14 @@ void *startDetectThread(void * detectstruct) {
   PacketQueue *pkt_queue = ((DetectStruct *)detectstruct)->packetqueue;
   Rule rule = ((DetectStruct *)detectstruct)->rulestruct;
   DangerPacketQueue *danger_pkt_queue = ((DetectStruct *)detectstruct)->dangerpacketqueue;
+  int *end_flag = ((DetectStruct *)detectstruct)->end_flag;
+
 
   while(1){
+    if (*end_flag == 1){
+      printf("[detect thread] end_flag is changed. shut down\n");
+      break;
+    }
 
     Packet *item = dequeuePacket(pkt_queue);
     if (item) {
@@ -91,7 +98,7 @@ PacketNode makePacketNode (u_char *packet, int caplen) {
       }
       //ICMP
       if (protocol == 1 && caplen >= 42) {
-        printf("ICMP\n");
+        node.protocol = 1;
       }
     }
   }
@@ -228,7 +235,6 @@ int checkNode(PacketNode node, Rule rule){
       else continue;  
     }   
     if (result == 1) {
-      // printf("위험해요~\n");
       return i;
     }
     else {
@@ -274,7 +280,7 @@ DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char * rulecon
   time(&current_time);
 
   struct tm *local_time = localtime(&current_time);
-  strftime(detecttime, sizeof(detecttime), "%y%m%d_%H:%M:%S", local_time);
+  strftime(detecttime, sizeof(detecttime), "%y-%m-%d %H:%M:%S", local_time);
   strcpy(dangernode->detecttime, detecttime);
   
 
