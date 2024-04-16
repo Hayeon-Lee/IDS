@@ -3,6 +3,8 @@
 
 #define MAX_LOG_QUEUE_SIZE 1028
 
+#include <sqlite3.h>
+
 typedef struct {
   int front, rear;
   int count;
@@ -14,9 +16,9 @@ void initLogQueue(LogQueue *queue);
 void enqueueLog(LogQueue *queue, DangerPacket *value);
 DangerPacket * dequeueLog(LogQueue *queue);
 
-void makeLogFile(LogQueue *queue);
-void writeLog(LogQueue *queue, FILE *logfile);
+void makeLogFile(LogQueue *queue, sqlite3 *db);
+void writeLog(LogQueue *queue,sqlite3 *db);
 char * returnLogString(DangerPacket *packet);
-int save_log_in_sqlite3();
-char *return_query_string(DangerPacket *packet);
+int create_table_in_sqlite3(sqlite3 *db);
+int insert_data_in_db(sqlite3 *db, DangerPacket *packet);
 #endif
