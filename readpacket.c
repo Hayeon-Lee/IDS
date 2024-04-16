@@ -17,6 +17,7 @@ void *start_readthread(void * readstruct) {
   ReadStruct * read_struct = (ReadStruct *)readstruct;
   PacketQueue * packetqueue = read_struct -> packetqueue;
   DangerPacketQueue *dangerpacketqueue = read_struct->dangerpacketqueue;
+  int *end_flag = read_struct->end_flag;
 
   const char *processed_packet = "processed_packets";
   struct stat st;
@@ -31,11 +32,16 @@ void *start_readthread(void * readstruct) {
 
     if (directory == NULL) {
       printf("[accessDirectory()]: 디렉토리에 접근할 수 없습니다.");
-    }
-    else {
-      accessPacketFiles(directory, path, packetqueue, dangerpacketqueue);
-        
+      printf("프로그램 종료합니다.\n");
+      exit(0);
+    }else {
+      accessPacketFiles(directory, path, packetqueue, dangerpacketqueue);   
       closedir(directory);
+
+      if (*end_flag == 1) {
+        printf("[read thread] end_flag is changed. shut down\n");
+        break;
+      }
     }
   }
 }
@@ -113,7 +119,7 @@ void accessPacketFiles(DIR * directory,
                   time(&current_time);
 
                   struct tm *local_time = localtime(&current_time);
-                  strftime(detecttime, sizeof(detecttime), "%y%m%d_%H:%M:%S", local_time);
+                  strftime(detecttime, sizeof(detecttime), "%y-%m-%d %H:%M:%S", local_time);
                   // TODO strcpy -> snprintf
                   strcpy(dangernode->detecttime, detecttime);
 
