@@ -81,12 +81,14 @@ typedef struct {
 typedef struct {
   PacketQueue *packetqueue;
   DangerPacketQueue *dangerpacketqueue;
+  int *end_flag;
 } ReadStruct;
 
 typedef struct {
   Rule rulestruct; //정책
   PacketQueue *packetqueue; //패킷큐
   DangerPacketQueue *dangerpacketqueue; //위험패킷큐
+  int *end_flag;
 } DetectStruct;
 
 typedef struct {
