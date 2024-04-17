@@ -18,6 +18,7 @@ void *startDetectThread(void * detectstruct) {
   DangerPacketQueue *danger_pkt_queue = ((DetectStruct *)detectstruct)->dangerpacketqueue;
   int *end_flag = ((DetectStruct *)detectstruct)->end_flag;
 
+  int count = 0; 
 
   while(1){
     if (*end_flag == 1){
@@ -45,6 +46,12 @@ void *startDetectThread(void * detectstruct) {
       }
       else { //정책 통과(=더 이상 필요 없는 패킷)
         free(item);
+      }
+    } else {
+      count++;
+      if (count >= 10) {
+        usleep(10);
+        count = 0;
       }
     }
   }
