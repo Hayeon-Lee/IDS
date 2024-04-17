@@ -77,9 +77,10 @@ typedef struct {
 } DangerPacketQueue;
 
 typedef struct {
-  PacketQueue *packetqueue;
+  PacketQueue **packetqueue;
   DangerPacketQueue *dangerpacketqueue;
   int *end_flag;
+  int threadcnt;
 } ReadStruct;
 
 typedef struct {
