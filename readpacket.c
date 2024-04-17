@@ -15,9 +15,10 @@ void *start_readthread(void * readstruct) {
   char * path = "./packets";
 
   ReadStruct * read_struct = (ReadStruct *)readstruct;
-  PacketQueue * packetqueue = read_struct -> packetqueue;
+  PacketQueue* *packetqueue_array = read_struct -> packetqueue;
   DangerPacketQueue *dangerpacketqueue = read_struct->dangerpacketqueue;
   int *end_flag = read_struct->end_flag;
+  int threadcnt = read_struct->threadcnt;
 
   const char *processed_packet = "processed_packets";
   struct stat st;
@@ -36,7 +37,7 @@ void *start_readthread(void * readstruct) {
       printf("프로그램 종료합니다.\n");
       exit(0);
     }else {
-      accessPacketFiles(directory, path, packetqueue, dangerpacketqueue);   
+      accessPacketFiles(directory, path, packetqueue_array, dangerpacketqueue, threadcnt);   
       closedir(directory);
 
       if (*end_flag == 1) {
@@ -67,10 +68,12 @@ int check_extension(const char * filename) {
 
 void accessPacketFiles(DIR * directory,
     char * directory_path,
-    PacketQueue* packetqueue,
-    DangerPacketQueue *dangerpacketqueue) {
+    PacketQueue* *packetqueue_array,
+    DangerPacketQueue *dangerpacketqueue,
+    int threadcnt) {
   struct dirent * entry;
-
+  
+  int queue_index = 0; 
   //디렉토리의 파일 읽기
   while ((entry = readdir(directory)) != NULL) {
     //해당 디렉토리와 상위 디렉토리가 아닐 때
@@ -94,6 +97,7 @@ void accessPacketFiles(DIR * directory,
         //패킷 읽기
         pcap_t * handle;
         char errbuff[PCAP_ERRBUF_SIZE];
+        int rotate_index = 0;
 
         //파일 읽기
         handle = pcap_open_offline(full_path, errbuff);
@@ -111,8 +115,9 @@ void accessPacketFiles(DIR * directory,
 
               value->packet = p_data;
               value->caplen = header->caplen;
-
-              int r = enqueuePacket((PacketQueue * ) packetqueue, value, header -> caplen);
+              
+              int r = enqueuePacket((PacketQueue * ) packetqueue_array[queue_index], value, header -> caplen);
+              queue_index = (queue_index + 1)%threadcnt;
               if (r==-1){
                   DangerPacket * dangernode = (DangerPacket *)malloc(sizeof(DangerPacket));
                   char detecttime[30];
