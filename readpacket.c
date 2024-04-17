@@ -27,7 +27,8 @@ void *start_readthread(void * readstruct) {
   }
 
   while(1){
-
+    sleep(1);
+//디렉토리 내부에 파일이 없으면 usleep()
     DIR * directory = opendir(path);
 
     if (directory == NULL) {
