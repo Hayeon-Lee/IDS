@@ -38,7 +38,9 @@ void *start_logthread(void *logstruct) {
       exit(0);
     }
   }
-  
+
+  int usleep_count = 0;
+
   while(1) {
   
     if (*end_flag == 1) {
@@ -56,6 +58,12 @@ void *start_logthread(void *logstruct) {
     DangerPacket * dangerpacket = dequeueDangerPacket(danger_pkt_queue);
     if (dangerpacket != NULL) {
       enqueueLog(&logqueue, dangerpacket);
+    } else {
+      usleep_count ++;
+      if(usleep_count == 10) {
+        usleep(1);
+        usleep_count = 0; 
+      }
     }
 
     if ((logqueue.count > (MAX_LOG_QUEUE_SIZE*0.8))){
@@ -140,11 +148,11 @@ int insert_data_in_db(sqlite3 *db, DangerPacket *packet){
 
   if (strcmp(packet->protocol, notsp)==0) {
     snprintf(insertDataQuery, 300,
-            "INSERT INTO LOGS (DETECTTIME, SRCIP) VALUES (\"%s\", \"%s\");",
+            "INSERT INTO LOGS (DETECTTIME, RULENAME) VALUES (\"%s\", \"%s\");",
             packet->detecttime, notsp);
   } else if (strcmp(packet->protocol, overflow)==0){
     snprintf(insertDataQuery, 300,
-            "INSERT INTO LOGS (DETECTTIME, SRCIP) VALUES (\"%s\", \"%s\");",
+            "INSERT INTO LOGS (DETECTTIME, RULENAME) VALUES (\"%s\", \"%s\");",
             packet->detecttime, overflow);
   } else {
     snprintf(insertDataQuery, 300,
