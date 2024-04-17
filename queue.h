@@ -1,19 +1,15 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 
-#define MAX_QUEUE_SIZE 1028 //임시값
-#define MAX_DANGER_QUEUE_SIZE 1028 //임시값
-
 #define PROTOCOL_NAME_LEN 5
 #define MAC_ADDR_LEN 18 
 #define IP_ADDR_LEN 16
 #define PAYLOAD_LEN 1461
 
 #define RULE_NAME_LEN 16
-
-#define RULE_NAME_LEN 16
 #define RULE_CONTENT_LEN 255
-#define MAX_RULE_CNT 15 //임시값
+
+#define MAX_CONFIG_LEN 255
 
 #include <netinet/if_ether.h>
 #include <pthread.h>
@@ -38,8 +34,8 @@ typedef struct {
 
 typedef struct {
   unsigned short cnt;
-  // TODO 전체 정책 개수만큼으로 동적 할당
-  RuleDetail rules[MAX_RULE_CNT];
+  int MAX_RULE_COUNT;
+  RuleDetail *rules;
 } Rule;
 
 //PacketItem 
@@ -53,7 +49,8 @@ typedef struct {
   int front, rear;
   int count;
   pthread_mutex_t mutex;
-  Packet *packet[MAX_QUEUE_SIZE]; 
+  Packet **packet;
+  int MAX_QUEUE_SIZE;
 } PacketQueue;
 
 //DangerPacketItem
@@ -75,7 +72,8 @@ typedef struct {
   int front, rear;
   int count;
   pthread_mutex_t mutex;
-  DangerPacket *items[MAX_DANGER_QUEUE_SIZE];
+  DangerPacket **items;
+  int MAX_QUEUE_SIZE;
 } DangerPacketQueue;
 
 typedef struct {
@@ -96,11 +94,11 @@ typedef struct {
   int *end_flag;
 } LogStruct;
 
-void initPacketQueue(PacketQueue *queue);
+void initPacketQueue(PacketQueue *queue, int queuesize);
 int enqueuePacket(PacketQueue *queue, Packet *value, int size);
 Packet *dequeuePacket(PacketQueue *queue);
 
-void initDangerPacketQueue(DangerPacketQueue *queue);
+void initDangerPacketQueue(DangerPacketQueue *queue, int queuesize);
 void enqueueDangerPacket(DangerPacketQueue *queue, DangerPacket *value);
 DangerPacket* dequeueDangerPacket(DangerPacketQueue *queue);
 
