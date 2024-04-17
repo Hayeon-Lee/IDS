@@ -21,9 +21,16 @@ void *start_logthread(void *logstruct) {
   char db_name[100];
   char db_make_time[30];
 
+  const char *logs = "logs";
+  struct stat st;
+  if(stat(logs, &st) == -1) {
+    mkdir(logs, 0700);
+    printf("log directory create\n");
+  }
+  
   struct tm *start_time_tm = localtime(&start_time);
   strftime(db_make_time, 30, "%y%m%d", start_time_tm);
-  snprintf(db_name, 100, "logs_%s.db", db_make_time);
+  snprintf(db_name, 100, "./logs/logs_%s.db", db_make_time);
 
   char *errMsg = 0;
   int db_result = sqlite3_open(db_name, &db);
@@ -47,7 +54,9 @@ void *start_logthread(void *logstruct) {
       printf("[log thread] 프로그램 종료를 감지했습니다. 남은 로그를 적습니다.\n");
       writeLog(&logqueue, db);
 
-      if (db!=NULL) sqlite3_close(db);
+      if (db!=NULL) {
+        sqlite3_close(db);
+      }
       break;
     }
     
