@@ -12,6 +12,10 @@
 #include "detectpacket.h"
 #include "logpacket.h"
 
+#define DEFAULT_QUEUESIZE 1028
+#define DEFAULT_THREADCNT 4
+#define DEFAULT_RULECNT 100 
+
 int end_flag = 0;
 
 void handle_signal(int signal){
@@ -119,21 +123,23 @@ int check_rule_valid(char *content, Rule *IDSRule){
   return -1; //처리 불가능한 패킷
 }
 
-void makeRule(Rule* IDSRule) {
+void makeRule(Rule* IDSRule, int rulecnt) {
   FILE * rulefile = fopen("./conf/rule.txt", "r");
 
   if (rulefile == NULL) {
-    printf("정책 파일 열기 실패.\n");
+    printf("정책 파일을 열지 못했습니다. 프로그램 종료합니다.\n");
+    exit(0);
   }
 
   char line[RULE_CONTENT_LEN];
   char *pline;
+  int written_rules = 0;
 
   while (!feof(rulefile)){
     pline = fgets(line, RULE_CONTENT_LEN, rulefile);
-
-    if (pline && IDSRule->cnt < MAX_RULE_CNT) {
-
+    
+    if (pline && IDSRule->cnt < rulecnt) {
+      written_rules += 1;
       char *content;
       char *name = strtok_r(pline, "|", &content);      
 
@@ -154,30 +160,115 @@ void makeRule(Rule* IDSRule) {
  
         if (result == 1 && IDSRule->rules[IDSRule->cnt].pattern[0] != '\0'){
           strcpy(IDSRule->rules[IDSRule->cnt].name, name);
-          printf("%s|%s\n", IDSRule->rules[IDSRule->cnt].name, IDSRule->rules[IDSRule->cnt].content);
           IDSRule->cnt += 1;
         }
       }
     }
   }
   fclose(rulefile);
+  printf("============================정책 파일 확인합니다.=======================\n\n");
+  printf("작성하신 전체 정책은 %d개이며, 이 중 %d개가 등록되었습니다.\n\n", written_rules, IDSRule->cnt);
+
+  if (IDSRule->cnt == 0) {
+    printf("등록된 정책이 없습니다. 정책 파일 재작성 후 프로그램을 재시작해주세요.\n");
+    exit(0);
+  }
+
+  printf("==============================등록 정책 목록===========================\n");
+  for(int i=0; i<IDSRule->cnt; i++){
+    printf("%s|%s\n", IDSRule->rules[i].name, IDSRule->rules[i].content);
+  }
+  printf("=======================================================================\n");
+
+  printf("작성하신 내용이 맞다면 y를, 아니라면 아무 문자나 입력해주세요.: ");
+  char order;
+  getchar();
+  scanf("%c", &order);
+  if (order!='y') {
+    printf("정책파일 재작성 후 프로그램 재시작해주세요.\n");
+    exit(0);
+  }
+  else {
+    printf("============================정책파일 확인을 마쳤습니다. 프로그램을 시작합니다. ==========================\n");
+    system("clear");
+  }
+}
+
+void parse_config_file (int *queuesize, int *threadcnt, int *rulecnt)  {
+  int isFile = 1;
+
+  FILE *configfile = fopen("./conf/config", "r");
+  if (configfile == NULL) isFile = 0;
+  else{
+    char line[MAX_CONFIG_LEN];
+    char *pline;
+
+    int props_flag[3] = {0,};
+
+    while(!feof(configfile)){
+      pline = fgets(line, MAX_CONFIG_LEN, configfile);
+
+      if(pline) {
+        char *content;
+        char *name = strtok_r(pline, "=", &content);
+
+        if (strcmp(name, "queuesize")==0) {
+          *queuesize = atoi(content);
+        } else if (strcmp(name, "thread")==0){
+          *threadcnt = atoi(content);
+        } else *rulecnt = atoi(content);
+      }
+    }
+  }
+  
+  system("clear");
+  if (!isFile) printf("설정파일을 열지 못해 기본값으로 진행합니다.\n");
+  printf("==========================설정파일 확인을 진행합니다.======================\n");
+  printf("[큐 사이즈: %d]\n[스레드 개수: %d]\n[정책 개수: %d]\n", *queuesize, *threadcnt, *rulecnt);
+  printf("작성하신 내용이 맞다면 y를, 아니라면 아무 문자나 입력해주세요.: ");
+  char order;
+  scanf("%c", &order);
+  if (order!='y') {
+    printf("설정파일 재작성 후 프로그램 재시작해주세요.\n");
+    exit(0);
+  }
+  else {
+    printf("============================설정파일 확인을 마쳤습니다.==========================\n");
+    system("clear");
+  }
 }
 
 int main() { 
+  
+  //conf 파일로부터 동적할당 
+  //init_config();
+  //구조체로 묶어서 한 번에 초기화 ( 확장성을 위해서 ) 
+  int queuesize = DEFAULT_QUEUESIZE, threadcnt = DEFAULT_THREADCNT, rulecnt = DEFAULT_RULECNT;
+  parse_config_file(&queuesize, &threadcnt, &rulecnt);
+  
   //Initialize Rule Structure
-  Rule IDSRule; 
+  Rule IDSRule;
+  IDSRule.rules = (RuleDetail *)malloc(sizeof(RuleDetail)*rulecnt);
   IDSRule.cnt = 0;
-
+  
   //정책 파일을 읽고 저장한다.
-  makeRule(&IDSRule);
+  makeRule(&IDSRule, rulecnt);
 
-  //Packet Queue 선언 및 초기화
+ // Packet Queue 선언 및 초기화
   PacketQueue packetqueue;
-  initPacketQueue(&packetqueue);
+  initPacketQueue(&packetqueue, queuesize);
+  /*
+  PacketQueue* *packetqueue_array = (PacketQueue *)malloc(sizeof(PacketQueue*)*threadcnt);
+  for(int i=0; i<threadcnt; i++) {
+    PacketQueue packetqueue;
+    packetqueue_array[i] = &packetqueue;
+    initPacketQueue(packetqueue_array[i], queuesize);
+  }
+  */
 
   //Danger Packet Queue 선언 및 초기화
   DangerPacketQueue dangerpacketqueue;
-  initDangerPacketQueue(&dangerpacketqueue);
+  initDangerPacketQueue(&dangerpacketqueue, queuesize);
 
   //Read Thread에게 넘겨줄 구조체 선언 및 초기화
   ReadStruct readstruct;
@@ -199,12 +290,18 @@ int main() {
   pthread_t ReadThread;
   int read_thr_id = pthread_create(&ReadThread, NULL, start_readthread,(void *)&readstruct);
 
-  // TODO DetectTrhead 개수 config 파일로 설정
-  pthread_t DetectThread1;
-  pthread_t DetectThread2;
+  pthread_t *detect_thread_array = (pthread_t *)malloc(sizeof(pthread_t)*threadcnt);
+  if (detect_thread_array == NULL) {
+    printf("스레드 생성 실패하였습니다. 프로그램을 종료합니다.\n");
+    exit(0);
+  }
 
-  int detect_thr_id1 = pthread_create(&DetectThread1, NULL, startDetectThread, (void *)&detectstruct);
-  int detect_thr_id2 = pthread_create(&DetectThread2, NULL, startDetectThread, (void *)&detectstruct);
+  for (int i=0; i<threadcnt; i++){
+    if (pthread_create(&detect_thread_array[i], NULL, startDetectThread, (void *)&detectstruct) != 0){
+      printf("스레드 실행 실패하였습니다. 프로그램을 종료합니다.\n");
+      exit(0);
+    }
+  }
 
   pthread_t LogThread;
   int log_thr_id = pthread_create(&LogThread, NULL, start_logthread, (void *)&logstruct);
@@ -212,10 +309,15 @@ int main() {
   printf("======== 프로그램을 종료하려면 ctrl+c를 입력하세요.=========\n");
   
   signal(SIGINT, handle_signal);
-  //for(;;){}
 
-  pthread_join(LogThread, NULL);
-  pthread_join(DetectThread1, NULL);
-  pthread_join(DetectThread2, NULL);
-  pthread_join(ReadThread, NULL);
+  if(pthread_join(LogThread, NULL)!=0) printf("로그 스레드 종료를 탐지하지 못했지만, 지금까지 진행한 작업은 저장되었습니다.\n");
+
+  for(int i=0; i<threadcnt; i++) {
+    if(pthread_join(detect_thread_array[i], NULL) != 0) {
+      printf("탐지 스레드 종료를 탐지하지 못했지만, 지금까지 진행한 작업은 저장되었습니다.\n");
+      exit(0);
+    }
+  }
+
+  if (pthread_join(ReadThread, NULL)!=0) printf("읽기 스레드 종료를 탐지하지 못했지만, 지금까지 진행한 작업은 저장되었습니다.\n");
 }
