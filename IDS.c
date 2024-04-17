@@ -255,16 +255,16 @@ int main() {
   makeRule(&IDSRule, rulecnt);
 
  // Packet Queue 선언 및 초기화
-  PacketQueue packetqueue;
-  initPacketQueue(&packetqueue, queuesize);
-  /*
-  PacketQueue* *packetqueue_array = (PacketQueue *)malloc(sizeof(PacketQueue*)*threadcnt);
+ // PacketQueue packetqueue;
+ // initPacketQueue(&packetqueue, queuesize);
+ 
+  // PacketQueue의 주소를 저장하는 일차원 배열
+  PacketQueue **packetqueue_array = (PacketQueue **)malloc(sizeof(PacketQueue*)*threadcnt);
   for(int i=0; i<threadcnt; i++) {
-    PacketQueue packetqueue;
-    packetqueue_array[i] = &packetqueue;
+    PacketQueue *packetqueue = (PacketQueue *)malloc(sizeof(PacketQueue));
+    packetqueue_array[i] = packetqueue;
     initPacketQueue(packetqueue_array[i], queuesize);
   }
-  */
 
   //Danger Packet Queue 선언 및 초기화
   DangerPacketQueue dangerpacketqueue;
@@ -272,16 +272,29 @@ int main() {
 
   //Read Thread에게 넘겨줄 구조체 선언 및 초기화
   ReadStruct readstruct;
-  readstruct.packetqueue = &packetqueue;
+  readstruct.packetqueue = packetqueue_array;
   readstruct.dangerpacketqueue = &dangerpacketqueue;
   readstruct.end_flag = &end_flag;
+  readstruct.threadcnt = threadcnt;
 
   //Detect Thread에게 넘겨줄 구조체 선언 및 초기화
+  /*
   DetectStruct detectstruct;
   detectstruct.rulestruct = IDSRule;
   detectstruct.packetqueue = &packetqueue;
   detectstruct.dangerpacketqueue = &dangerpacketqueue;
   detectstruct.end_flag = &end_flag;  
+  */
+  
+  DetectStruct **detectstruct_array = (DetectStruct **)malloc(sizeof(DetectStruct*)*threadcnt);
+  for(int i=0; i<threadcnt; i++){
+    DetectStruct *detectstruct = (DetectStruct *)malloc(sizeof(DetectStruct));
+    detectstruct->rulestruct = IDSRule;
+    detectstruct->packetqueue = packetqueue_array[i];
+    detectstruct->dangerpacketqueue = &dangerpacketqueue;
+    detectstruct->end_flag = &end_flag;
+    detectstruct_array[i] = detectstruct;
+  }
 
   LogStruct logstruct;
   logstruct.dangerpacketqueue = &dangerpacketqueue;
@@ -289,22 +302,30 @@ int main() {
 
   pthread_t ReadThread;
   int read_thr_id = pthread_create(&ReadThread, NULL, start_readthread,(void *)&readstruct);
+  if (read_thr_id != 0) {
+    printf("[READ THREAD] 생성 실패. 프로그램을 종료합니다.\n");
+    exit(0);
+  }
 
   pthread_t *detect_thread_array = (pthread_t *)malloc(sizeof(pthread_t)*threadcnt);
   if (detect_thread_array == NULL) {
-    printf("스레드 생성 실패하였습니다. 프로그램을 종료합니다.\n");
+    printf("[DETECT THREAD] 스레드 공간 생성 실패하였습니다. 프로그램을 종료합니다.\n");
     exit(0);
   }
 
   for (int i=0; i<threadcnt; i++){
-    if (pthread_create(&detect_thread_array[i], NULL, startDetectThread, (void *)&detectstruct) != 0){
-      printf("스레드 실행 실패하였습니다. 프로그램을 종료합니다.\n");
+    if (pthread_create(&detect_thread_array[i], NULL, startDetectThread, (void *)(detectstruct_array[i])) != 0){
+      printf("[DETECT THREAD] 생성 실패. 프로그램을 종료합니다.\n");
       exit(0);
     }
   }
 
   pthread_t LogThread;
   int log_thr_id = pthread_create(&LogThread, NULL, start_logthread, (void *)&logstruct);
+  if (log_thr_id != 0) {
+    printf("[LOG THREAD] 생성 실패. 프로그램을 종료합니다.\n");
+    exit(0);
+  }
 
   printf("======== 프로그램을 종료하려면 ctrl+c를 입력하세요.=========\n");
   
