@@ -40,10 +40,7 @@ void *start_readthread(void * readstruct) {
       accessPacketFiles(directory, path, packetqueue_array, dangerpacketqueue, threadcnt);   
       closedir(directory);
 
-      if (*end_flag == 1) {
-        printf("[read thread] end_flag is changed. shut down\n");
-        break;
-      }
+      if (*end_flag == 1) break;
     }
   }
 }
@@ -141,6 +138,7 @@ void accessPacketFiles(DIR * directory,
             }
           }
           pcap_close(handle);
+//          printf("%s 파일을 처리하여 이동합니다.\n", full_path);
           rename(full_path, moving_path);
         }
         else {
