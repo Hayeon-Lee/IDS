@@ -16,13 +16,19 @@
 #define DEFAULT_THREADCNT 4
 #define DEFAULT_RULECNT 100 
 
+typedef struct {
+  PacketQueue **packetqueue_array;
+  DetectStruct **detectstruct_array; 
+  int *end_flag;
+  int threadcnt;
+} PrintStruct;
+
 int end_flag = 0;
 
 void handle_signal(int signal){
   if (signal == SIGINT) {
     printf("프로그램을 종료합니다\n");
     end_flag = 1;
-    exit(0);
   }
 }
 
@@ -238,6 +244,31 @@ void parse_config_file (int *queuesize, int *threadcnt, int *rulecnt)  {
   }
 }
 
+void * start_printthread(void * printstruct) {
+  PrintStruct *print_struct = (PrintStruct *)printstruct;
+  PacketQueue **packetqueue_array = print_struct -> packetqueue_array;
+  DetectStruct **detectstruct_array = print_struct -> detectstruct_array;
+  int threadcnt = print_struct->threadcnt;
+  int *end_flag = print_struct->end_flag;
+
+
+  printf("[스레드는 자신의 번호와 같은 큐로부터 dequeue합니다.]\n");
+
+  while(1){
+    sleep(3);
+
+    if (*end_flag == 1) break;
+
+    for(int i=0; i<threadcnt; i++) {
+      printf("===========[QUEUE(THREAD) %d]==========\n", i+1);
+      printf("[ENQUEUE]: %d ", packetqueue_array[i]->total_enqueue_cnt);
+      printf("[DEQUEUE]: %d ", detectstruct_array[i]->thread_dequeue_cnt);
+      printf("[DROP]: %d [%.2lf]\n\n", packetqueue_array[i]->total_drop_cnt,
+                                     packetqueue_array[i]->total_drop_cnt/(float)packetqueue_array[i]->total_enqueue_cnt*100.0);
+    }
+  }
+}
+
 int main() { 
   
   //conf 파일로부터 동적할당 
@@ -253,10 +284,6 @@ int main() {
   
   //정책 파일을 읽고 저장한다.
   makeRule(&IDSRule, rulecnt);
-
- // Packet Queue 선언 및 초기화
- // PacketQueue packetqueue;
- // initPacketQueue(&packetqueue, queuesize);
  
   // PacketQueue의 주소를 저장하는 일차원 배열
   PacketQueue **packetqueue_array = (PacketQueue **)malloc(sizeof(PacketQueue*)*threadcnt);
@@ -277,15 +304,6 @@ int main() {
   readstruct.end_flag = &end_flag;
   readstruct.threadcnt = threadcnt;
 
-  //Detect Thread에게 넘겨줄 구조체 선언 및 초기화
-  /*
-  DetectStruct detectstruct;
-  detectstruct.rulestruct = IDSRule;
-  detectstruct.packetqueue = &packetqueue;
-  detectstruct.dangerpacketqueue = &dangerpacketqueue;
-  detectstruct.end_flag = &end_flag;  
-  */
-  
   DetectStruct **detectstruct_array = (DetectStruct **)malloc(sizeof(DetectStruct*)*threadcnt);
   for(int i=0; i<threadcnt; i++){
     DetectStruct *detectstruct = (DetectStruct *)malloc(sizeof(DetectStruct));
@@ -293,6 +311,7 @@ int main() {
     detectstruct->packetqueue = packetqueue_array[i];
     detectstruct->dangerpacketqueue = &dangerpacketqueue;
     detectstruct->end_flag = &end_flag;
+    detectstruct->thread_dequeue_cnt = 0;
     detectstruct_array[i] = detectstruct;
   }
 
@@ -327,9 +346,21 @@ int main() {
     exit(0);
   }
 
+  PrintStruct printstruct;
+  printstruct.packetqueue_array = packetqueue_array;
+  printstruct.detectstruct_array = detectstruct_array;
+  printstruct.end_flag = &end_flag;
+  printstruct.threadcnt = threadcnt;
+
+  pthread_t PrintThread;
+  int print_thr_id = pthread_create(&PrintThread, NULL, start_printthread, (void *)&printstruct);
+  if (print_thr_id != 0){
+    printf("[PRINT THREAD] 생성 실패. 실시간 통계는 출력되지 않지만 IDS는 정상실행됩니다.\n");
+  }
+
   printf("======== 프로그램을 종료하려면 ctrl+c를 입력하세요.=========\n");
   
-  signal(SIGINT, handle_signal);
+  signal(SIGINT, handle_signal); 
 
   if(pthread_join(LogThread, NULL)!=0) printf("로그 스레드 종료를 탐지하지 못했지만, 지금까지 진행한 작업은 저장되었습니다.\n");
 
@@ -341,4 +372,6 @@ int main() {
   }
 
   if (pthread_join(ReadThread, NULL)!=0) printf("읽기 스레드 종료를 탐지하지 못했지만, 지금까지 진행한 작업은 저장되었습니다.\n");
+
+  if (pthread_join(PrintThread, NULL)!=0) printf("통계 출력 스레드 종료를 탐지하지 못했지만, 지금까지 진행한 작업은 저장되었습니다.\n");
 }
