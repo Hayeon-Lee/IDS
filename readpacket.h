@@ -9,5 +9,4 @@
 void *start_readthread(void *readstruct);
 int check_extension(const char *filename);
 void accessPacketFiles(DIR *directory, char * directory_path, PacketQueue* *packetqueue_array, DangerPacketQueue *dangerpacketqueue, int threadcnt);
-
 #endif
