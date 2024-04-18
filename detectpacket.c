@@ -17,18 +17,23 @@ void *startDetectThread(void * detectstruct) {
   Rule rule = ((DetectStruct *)detectstruct)->rulestruct;
   DangerPacketQueue *danger_pkt_queue = ((DetectStruct *)detectstruct)->dangerpacketqueue;
   int *end_flag = ((DetectStruct *)detectstruct)->end_flag;
+  long long *thread_dequeue_cnt = &((DetectStruct *)detectstruct)->thread_dequeue_cnt;
 
   int count = 0; 
 
+
   while(1){
     if (*end_flag == 1){
-      printf("[detect thread] end_flag is changed. shut down\n");
+/*      printf("===========[스레드 통계]============\n");
+      printf("큐에 있던 packet 양: %d\n", pkt_queue->total_enqueue_cnt);
+      printf("dequeue한 packet 양: %d\n", thread_dequeue_cnt);
+      printf("drop된 packet 양: %d -> drop률: %.2lf\n", pkt_queue->total_drop_cnt, ((float)pkt_queue->total_drop_cnt/pkt_queue->total_enqueue_cnt)*100.0);*/
       break;
     }
 
     Packet *item = dequeuePacket(pkt_queue);
     if (item) {
-    
+      *thread_dequeue_cnt += 1;
       PacketNode node;
       node = makePacketNode(item->packet, item->caplen);
 
