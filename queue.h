@@ -51,6 +51,10 @@ typedef struct {
   pthread_mutex_t mutex;
   Packet **packet;
   int MAX_QUEUE_SIZE;
+
+  long long total_enqueue_cnt;
+  long long total_dequeue_cnt;
+  long long total_drop_cnt;
 } PacketQueue;
 
 //DangerPacketItem
@@ -88,6 +92,8 @@ typedef struct {
   PacketQueue *packetqueue; //패킷큐
   DangerPacketQueue *dangerpacketqueue; //위험패킷큐
   int *end_flag;
+
+  long long thread_dequeue_cnt;
 } DetectStruct;
 
 typedef struct {
