@@ -121,8 +121,6 @@ unsigned short readEthernet(u_char *packet, PacketNode *node ) {
   memcpy(node->dstmac, eth_header->ether_dhost, ETH_ALEN);
   memcpy(node->srcmac, eth_header->ether_shost, ETH_ALEN);
 
-  printf("\n");
-
   return ntohs(eth_header->ether_type);
 }
 
