@@ -23,13 +23,7 @@ void *startDetectThread(void * detectstruct) {
 
 
   while(1){
-    if (*end_flag == 1){
-/*      printf("===========[스레드 통계]============\n");
-      printf("큐에 있던 packet 양: %d\n", pkt_queue->total_enqueue_cnt);
-      printf("dequeue한 packet 양: %d\n", thread_dequeue_cnt);
-      printf("drop된 packet 양: %d -> drop률: %.2lf\n", pkt_queue->total_drop_cnt, ((float)pkt_queue->total_drop_cnt/pkt_queue->total_enqueue_cnt)*100.0);*/
-      break;
-    }
+    if (*end_flag == 1) break;
 
     Packet *item = dequeuePacket(pkt_queue);
     if (item) {
@@ -46,7 +40,7 @@ void *startDetectThread(void * detectstruct) {
 
       int rulenum = checkNode(node, rule);
       if (rulenum != -1) { //정책 위반
-         DangerPacket *dangernode = makeDangerPacket(node, rule.rules[rulenum].name, rule.rules[rulenum].content ); 
+         DangerPacket *dangernode = makeDangerPacket(node, (char *)(rule.rules[rulenum].name), (char *)(rule.rules[rulenum].content) ); 
          enqueueDangerPacket(danger_pkt_queue, dangernode);
       }
       else { //정책 통과(=더 이상 필요 없는 패킷)
@@ -60,6 +54,7 @@ void *startDetectThread(void * detectstruct) {
       }
     }
   }
+  return NULL;
 }
 
 void initPacketNode(PacketNode *node){
@@ -81,8 +76,6 @@ void initPacketNode(PacketNode *node){
   node->size_payload = 0;
 }
 
-// TODO Parsing...
-// Decode..
 PacketNode makePacketNode (u_char *packet, int caplen) { 
   PacketNode node;
   initPacketNode(&node);
@@ -127,6 +120,8 @@ unsigned short readEthernet(u_char *packet, PacketNode *node ) {
 
   memcpy(node->dstmac, eth_header->ether_dhost, ETH_ALEN);
   memcpy(node->srcmac, eth_header->ether_shost, ETH_ALEN);
+
+  printf("\n");
 
   return ntohs(eth_header->ether_type);
 }
@@ -293,25 +288,24 @@ DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char * rulecon
 
   struct tm *local_time = localtime(&current_time);
   strftime(detecttime, sizeof(detecttime), "%y-%m-%d %H:%M:%S", local_time);
-  strcpy(dangernode->detecttime, detecttime);
-  
+  snprintf((char *)(dangernode->detecttime), 30, "%s", detecttime);
 
   //지원되지 않는 패킷  
   if (node.protocol == -1) {
-    strcpy(dangernode->rulename, rulename);
-    strcpy(dangernode->rulecontent, rulecontent);
-    strcpy(dangernode->protocol, "not support");
+      snprintf((char *)(dangernode->rulename), 16, "%s", rulename);
+      snprintf((char *)(dangernode->rulecontent), 225, "%s", rulecontent);
+      snprintf((char *)(dangernode->protocol), 10, "%s", "not support");
     return dangernode;
   }
-
-  strcpy(dangernode->rulename, rulename);
-  strcpy(dangernode->rulecontent, rulecontent);
+    
+    snprintf((char *)(dangernode->rulename), 16, "%s", rulename);
+    snprintf((char *)(dangernode->rulecontent), 225, "%s", rulecontent);
 
   if (node.srcmac[0] != '\0') {
-    snprintf(dangernode->srcmac, 6, node.srcmac);
+    snprintf((char *)(dangernode->srcmac), 6, (const char *)(node.srcmac));
   }
   if (node.dstmac[0] != '\0') {
-    snprintf(dangernode->dstmac,6, node.dstmac);
+    snprintf((char *)(dangernode->dstmac), 6, (const char *)(node.dstmac));
   }
 
   if (node.srcip!=-1) {
@@ -321,7 +315,7 @@ DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char * rulecon
     addr.s_addr = htonl(node.srcip);
     inet_ntop(AF_INET, &addr, tmpsrcip, INET_ADDRSTRLEN);
 
-    strcpy(dangernode->srcip, tmpsrcip);
+    snprintf((char*)(dangernode->srcip), 16,"%s", tmpsrcip);
   }
 
   if (node.dstip!=-1){
@@ -331,15 +325,15 @@ DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char * rulecon
     addr.s_addr = htonl(node.dstip);
     inet_ntop(AF_INET, &addr, tmpdstip, INET_ADDRSTRLEN);
     
-    strcpy(dangernode->dstip, tmpdstip);
+    snprintf((char *)(dangernode->dstip), 16, "%s", tmpdstip);
   }
 
   if (node.protocol!=-1){
     if (node.protocol == 6) {
-      strcpy(dangernode->protocol, "tcp");
+      snprintf((char *)(dangernode->protocol), 10, "%s", "tcp");
     }
     if (node.protocol == 17) {
-      strcpy(dangernode->protocol, "udp");
+      snprintf((char *)(dangernode->protocol), 10, "%s", "udp");
     } 
   }
 
