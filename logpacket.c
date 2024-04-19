@@ -34,7 +34,6 @@ void *start_logthread(void *logstruct) {
   strftime(db_make_time, 30, "%y%m%d", start_time_tm);
   snprintf(db_name, 100, "./logs/logs_%s.db", db_make_time);
 
-  char *errMsg = 0;
   int db_result = sqlite3_open(db_name, &db);
   if (db_result != SQLITE_OK) {
     db = NULL;
@@ -85,6 +84,8 @@ void *start_logthread(void *logstruct) {
       writeLog(&logqueue, db);
     }
   }
+
+  return NULL;
 }
 
 void initLogQueue(LogQueue *queue, int queuesize) {
@@ -152,23 +153,23 @@ int create_table_in_sqlite3(sqlite3 *db) {
 }
 
 int insert_data_in_db(sqlite3 *db, DangerPacket *packet){
-  char insertDataQuery[300];
+  char insertDataQuery[1000];
   int result = 0;
   char *errMsg = 0;
 
   char notsp[15] = "not support";
   char overflow[15] = "overflow";
 
-  if (strcmp(packet->protocol, notsp)==0) {
-    snprintf(insertDataQuery, 300,
+  if (strcmp((const char *)packet->protocol, notsp)==0) {
+    snprintf(insertDataQuery, 1000,
             "INSERT INTO LOGS (DETECTTIME, RULENAME) VALUES (\"%s\", \"%s\");",
             packet->detecttime, notsp);
-  } else if (strcmp(packet->protocol, overflow)==0){
-    snprintf(insertDataQuery, 300,
+  } else if (strcmp((const char *)packet->protocol, overflow)==0){
+    snprintf(insertDataQuery, 1000,
             "INSERT INTO LOGS (DETECTTIME, RULENAME) VALUES (\"%s\", \"%s\");",
             packet->detecttime, overflow);
   } else {
-    snprintf(insertDataQuery, 300,
+    snprintf(insertDataQuery, 1000,
             "INSERT INTO LOGS (DETECTTIME, SRCIP, SRCPORT, DSTIP, DSTPORT, RULENAME, RULECONTENT)"
             " VALUES (\"%s\", \"%s\", %u, \"%s\", %u, \"%s\", \"%s\");",
             packet->detecttime, packet->srcip, packet->srcport, packet->dstip, packet->dstport, 
