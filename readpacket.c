@@ -43,6 +43,7 @@ void *start_readthread(void * readstruct) {
       if (*end_flag == 1) break;
     }
   }
+  return NULL;
 }
 
 int check_extension(const char * filename) {
@@ -82,19 +83,13 @@ void accessPacketFiles(DIR * directory,
         //파일 이름 합치기 
         char full_path[MAX_FILENAME_LEN] = "\0";
         char moving_path[MAX_FILENAME_LEN] ="\0";
-        strcat(full_path, directory_path);
-        strcat(moving_path, "./processed_packets/");
-
-        strcat(full_path, "/");
-
-        strcat(full_path, entry -> d_name);
-        strcat(moving_path, entry ->d_name);
-        // TODO strcat -> snprintf
+        
+        snprintf(full_path, MAX_FILENAME_LEN, "%s/%s", directory_path, entry->d_name);
+        snprintf(moving_path, MAX_FILENAME_LEN, "./processed_packets/%s", entry->d_name);
         
         //패킷 읽기
         pcap_t * handle;
         char errbuff[PCAP_ERRBUF_SIZE];
-        int rotate_index = 0;
 
         //파일 읽기
         handle = pcap_open_offline(full_path, errbuff);
@@ -123,14 +118,13 @@ void accessPacketFiles(DIR * directory,
 
                   struct tm *local_time = localtime(&current_time);
                   strftime(detecttime, sizeof(detecttime), "%y-%m-%d %H:%M:%S", local_time);
-                  // TODO strcpy -> snprintf
-                  strcpy(dangernode->detecttime, detecttime);
-
-                  strcpy(dangernode->rulename, "overflow");
-                  strcpy(dangernode->rulecontent, "overflow");
-                  strcpy(dangernode->protocol , "overflow");
+                  snprintf((char *)(dangernode->detecttime),30, "%s", detecttime);
+                  snprintf((char *)(dangernode->rulename),16, "%s", "overflow");
+                  snprintf((char *)(dangernode->rulecontent),255, "%s", "overflow");
+                  snprintf((char *)(dangernode->protocol),10, "%s", "overflow");
 
                   enqueueDangerPacket(dangerpacketqueue, dangernode);
+                  free(value); //overflow된 패킷은 dangerpacket으로 저장되었으므로 없앤다.
                 }
               }
             else {
@@ -138,7 +132,6 @@ void accessPacketFiles(DIR * directory,
             }
           }
           pcap_close(handle);
-//          printf("%s 파일을 처리하여 이동합니다.\n", full_path);
           rename(full_path, moving_path);
         }
         else {
