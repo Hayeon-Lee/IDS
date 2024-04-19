@@ -1,7 +1,7 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 
-#define PROTOCOL_NAME_LEN 5
+#define PROTOCOL_NAME_LEN 10
 #define MAC_ADDR_LEN 18 
 #define IP_ADDR_LEN 16
 #define PAYLOAD_LEN 1461
@@ -14,6 +14,7 @@
 #include <netinet/if_ether.h>
 #include <pthread.h>
 #include <pcap.h>
+#include <stdint.h>
 
 typedef struct {
   unsigned char name[RULE_NAME_LEN];
