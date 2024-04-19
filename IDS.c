@@ -6,6 +6,8 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <limits.h>
+#include <stdint.h>
 
 #include "queue.h"
 #include "readpacket.h"
@@ -15,12 +17,32 @@
 #define DEFAULT_QUEUESIZE 1028
 #define DEFAULT_THREADCNT 4
 #define DEFAULT_RULECNT 100 
+#define DEFAULT_PROP_CNT 3
+
+#define SRCMAC 1
+#define DSTMAC 2
+#define SRCIP 3
+#define DSTIP 4
+#define SRCPORT 5
+#define DSTPORT 6
+#define PATTERN 7
+
+#define OK 1
+#define BAD -1
+#define INITIALIZE -1
+
+typedef struct {
+  int32_t queuesize;
+  int32_t threadcnt;
+  int32_t rulecnt;
+  int32_t propcnt;
+} Config;
 
 typedef struct {
   PacketQueue **packetqueue_array;
   DetectStruct **detectstruct_array; 
-  int *end_flag;
-  int threadcnt;
+  int32_t *end_flag;
+  int32_t threadcnt;
 } PrintStruct;
 
 int end_flag = 0;
@@ -33,16 +55,15 @@ void handle_signal(int signal){
 }
 
 int return_rule_type(char *prop){
-  // TODO return code define.
-  if(strcmp(prop, "srcmac")==0) return 1;
-  if(strcmp(prop, "dstmac")==0) return 2;
-  if(strcmp(prop, "srcip")==0) return 3;
-  if(strcmp(prop, "dstip")==0) return 4;
-  if(strcmp(prop, "srcport")==0) return 5;
-  if(strcmp(prop, "dstport")==0) return 6;
-  if(strcmp(prop, "pattern")==0) return 7;
+  if(strcmp(prop, "srcmac")==0) return SRCMAC;
+  if(strcmp(prop, "dstmac")==0) return DSTMAC;
+  if(strcmp(prop, "srcip")==0) return SRCIP;
+  if(strcmp(prop, "dstip")==0) return DSTIP;
+  if(strcmp(prop, "srcport")==0) return SRCPORT;
+  if(strcmp(prop, "dstport")==0) return DSTPORT;
+  if(strcmp(prop, "pattern")==0) return PATTERN;
   
-  return -1;
+  return BAD;
 }
 
 int check_rule_valid(char *content, Rule *IDSRule){
@@ -81,52 +102,45 @@ int check_rule_valid(char *content, Rule *IDSRule){
         type = return_rule_type(prop);
         
         switch (type) {
-          case 3: //srcip
+          case SRCIP: //srcip
             ip.s_addr = inet_addr(value);
             ip.s_addr = ntohl(ip.s_addr);
             
-            // TODO MAXINT 뭐시기
-            if (ip.s_addr < 0 || ip.s_addr > 4294967295) {
-              return -1;
-            }
-
+            if (ip.s_addr < 0 || ip.s_addr > UINT_MAX) return BAD;            
             IDSRule->rules[IDSRule->cnt].srcip = ip.s_addr;
             break;
-          case 4: //dstip
+
+          case DSTIP: //dstip
             ip.s_addr = inet_addr(value);
             ip.s_addr = ntohl(ip.s_addr);
             
-            if (ip.s_addr < 0 || ip.s_addr > 4294967295) {
-              return -1;
-            }
-
+            if (ip.s_addr < 0 || ip.s_addr > UINT_MAX) return BAD;
             IDSRule->rules[IDSRule->cnt].dstip = ip.s_addr;
             break;
-          case 5: //srcport
-            if (atoi(tmp)<0 || atoi(tmp) > 65535){
-              return -1;
-            } 
+
+          case SRCPORT: //srcport
+            if (atoi(tmp)<0 || atoi(tmp) > USHRT_MAX) return BAD; 
             IDSRule->rules[IDSRule->cnt].srcport = atoi(tmp);
             break;
-          case 6: //dstport
-            
-            if (atoi(tmp)<0 || atoi(tmp) > 65535){
-              return -1;
-            } 
+
+          case DSTPORT: //dstport
+            if (atoi(tmp)<0 || atoi(tmp) > USHRT_MAX) return BAD;
             IDSRule->rules[IDSRule->cnt].dstport = atoi(tmp);
             break;
-          case 7: //pattern
+
+          case PATTERN: //pattern
             strcpy(IDSRule->rules[IDSRule->cnt].pattern, tmp);
             break;
-          case -1:
-            return -1;
+          
+          case BAD:
+            return BAD;
         }
       }
       front = strtok_r(behind, ";", &behind);
     }
-    return 1;
+    return OK;
   }
-  return -1; //처리 불가능한 패킷
+  return BAD; //처리 불가능한 패킷
 }
 
 void makeRule(Rule* IDSRule, int rulecnt) {
@@ -149,8 +163,8 @@ void makeRule(Rule* IDSRule, int rulecnt) {
       char *content;
       char *name = strtok_r(pline, "|", &content);      
 
-      strcpy(IDSRule->rules[IDSRule->cnt].content, content);      
-      for (int i=0; i<strlen(IDSRule->rules[IDSRule->cnt].content);i++){
+      strcpy((char *)(IDSRule->rules[IDSRule->cnt].content), content);      
+      for (int i=0; i<strlen((const char *)(IDSRule->rules[IDSRule->cnt].content));i++){
         if (IDSRule->rules[IDSRule->cnt].content[i] == 0x0a){
           IDSRule->rules[IDSRule->cnt].content[i] = 0x00;
         }
@@ -164,8 +178,8 @@ void makeRule(Rule* IDSRule, int rulecnt) {
         // TODO 이름 고민
         int result = check_rule_valid(content, IDSRule);
  
-        if (result == 1 && IDSRule->rules[IDSRule->cnt].pattern[0] != '\0'){
-          strcpy(IDSRule->rules[IDSRule->cnt].name, name);
+        if (result == OK && IDSRule->rules[IDSRule->cnt].pattern[0] != '\0'){
+          strcpy((char *)(IDSRule->rules[IDSRule->cnt].name),(const char *)name);
           IDSRule->cnt += 1;
         }
       }
@@ -200,7 +214,7 @@ void makeRule(Rule* IDSRule, int rulecnt) {
   }
 }
 
-void parse_config_file (int *queuesize, int *threadcnt, int *rulecnt)  {
+void parse_config_file (Config* config)  {
   int isFile = 1;
 
   FILE *configfile = fopen("./conf/config", "r");
@@ -208,8 +222,6 @@ void parse_config_file (int *queuesize, int *threadcnt, int *rulecnt)  {
   else{
     char line[MAX_CONFIG_LEN];
     char *pline;
-
-    int props_flag[3] = {0,};
 
     while(!feof(configfile)){
       pline = fgets(line, MAX_CONFIG_LEN, configfile);
@@ -219,10 +231,12 @@ void parse_config_file (int *queuesize, int *threadcnt, int *rulecnt)  {
         char *name = strtok_r(pline, "=", &content);
 
         if (strcmp(name, "queuesize")==0) {
-          *queuesize = atoi(content);
+          config->queuesize = atoi(content);
         } else if (strcmp(name, "thread")==0){
-          *threadcnt = atoi(content);
-        } else *rulecnt = atoi(content);
+          config->threadcnt = atoi(content);
+        } else {
+         config->rulecnt = atoi(content);
+        }
       }
     }
   }
@@ -230,7 +244,7 @@ void parse_config_file (int *queuesize, int *threadcnt, int *rulecnt)  {
   system("clear");
   if (!isFile) printf("설정파일을 열지 못해 기본값으로 진행합니다.\n");
   printf("==========================설정파일 확인을 진행합니다.======================\n");
-  printf("[큐 사이즈: %d]\n[스레드 개수: %d]\n[정책 개수: %d]\n", *queuesize, *threadcnt, *rulecnt);
+  printf("[큐 사이즈: %d]\n[스레드 개수: %d]\n[정책 개수: %d]\n", config->queuesize, config->threadcnt, config->rulecnt);
   printf("작성하신 내용이 맞다면 y를, 아니라면 아무 문자나 입력해주세요.: ");
   char order;
   scanf("%c", &order);
@@ -252,60 +266,73 @@ void * start_printthread(void * printstruct) {
   int *end_flag = print_struct->end_flag;
 
 
-  printf("[스레드는 자신의 번호와 같은 큐로부터 dequeue합니다.]\n");
+  printf("[안내: 스레드는 자신의 번호와 같은 큐로부터 dequeue합니다.]\n\n");
 
   while(1){
-    sleep(3);
+    sleep(1);
 
     if (*end_flag == 1) break;
 
+    int total_enqueue = 0;
+    int total_drop = 0;
+
     for(int i=0; i<threadcnt; i++) {
       printf("===========[QUEUE(THREAD) %d]==========\n", i+1);
-      printf("[ENQUEUE]: %d ", packetqueue_array[i]->total_enqueue_cnt);
-      printf("[DEQUEUE]: %d ", detectstruct_array[i]->thread_dequeue_cnt);
-      printf("[DROP]: %d [%.2lf]\n\n", packetqueue_array[i]->total_drop_cnt,
+      printf("[ENQUEUE]: %lld ", packetqueue_array[i]->total_enqueue_cnt);
+      printf("[DEQUEUE]: %lld ", detectstruct_array[i]->thread_dequeue_cnt);
+      printf("[DROP]: %lld [%.2lf]\n", packetqueue_array[i]->total_drop_cnt,
                                      packetqueue_array[i]->total_drop_cnt/(float)packetqueue_array[i]->total_enqueue_cnt*100.0);
+      
+      total_enqueue += packetqueue_array[i]->total_enqueue_cnt;
+      total_drop += packetqueue_array[i] -> total_drop_cnt;
     }
+    printf("\n");
+    printf("[평균 drop]: %.2lf\n", total_drop/(float)total_enqueue * 100.0);
+    printf("======================================\n");
   }
+
+  return NULL;
 }
 
 int main() { 
-  
-  //conf 파일로부터 동적할당 
-  //init_config();
-  //구조체로 묶어서 한 번에 초기화 ( 확장성을 위해서 ) 
-  int queuesize = DEFAULT_QUEUESIZE, threadcnt = DEFAULT_THREADCNT, rulecnt = DEFAULT_RULECNT;
-  parse_config_file(&queuesize, &threadcnt, &rulecnt);
+ 
+  Config config;
+  config.queuesize = DEFAULT_QUEUESIZE;
+  config.threadcnt = DEFAULT_THREADCNT;
+  config.rulecnt = DEFAULT_RULECNT;
+  config.propcnt = DEFAULT_PROP_CNT;
+
+  parse_config_file(&config);
   
   //Initialize Rule Structure
   Rule IDSRule;
-  IDSRule.rules = (RuleDetail *)malloc(sizeof(RuleDetail)*rulecnt);
+  IDSRule.rules = (RuleDetail *)malloc(sizeof(RuleDetail)*config.rulecnt);
   IDSRule.cnt = 0;
   
   //정책 파일을 읽고 저장한다.
-  makeRule(&IDSRule, rulecnt);
+  makeRule(&IDSRule, config.rulecnt);
  
   // PacketQueue의 주소를 저장하는 일차원 배열
-  PacketQueue **packetqueue_array = (PacketQueue **)malloc(sizeof(PacketQueue*)*threadcnt);
-  for(int i=0; i<threadcnt; i++) {
+  PacketQueue **packetqueue_array = (PacketQueue **)malloc(sizeof(PacketQueue*)*config.threadcnt);
+  for(int i=0; i<config.threadcnt; i++) {
     PacketQueue *packetqueue = (PacketQueue *)malloc(sizeof(PacketQueue));
     packetqueue_array[i] = packetqueue;
-    initPacketQueue(packetqueue_array[i], queuesize);
+    initPacketQueue(packetqueue_array[i], config.queuesize);
   }
 
   //Danger Packet Queue 선언 및 초기화
   DangerPacketQueue dangerpacketqueue;
-  initDangerPacketQueue(&dangerpacketqueue, queuesize);
+  initDangerPacketQueue(&dangerpacketqueue, config.queuesize);
 
   //Read Thread에게 넘겨줄 구조체 선언 및 초기화
   ReadStruct readstruct;
   readstruct.packetqueue = packetqueue_array;
   readstruct.dangerpacketqueue = &dangerpacketqueue;
   readstruct.end_flag = &end_flag;
-  readstruct.threadcnt = threadcnt;
+  readstruct.threadcnt = config.threadcnt;
 
-  DetectStruct **detectstruct_array = (DetectStruct **)malloc(sizeof(DetectStruct*)*threadcnt);
-  for(int i=0; i<threadcnt; i++){
+  DetectStruct **detectstruct_array = (DetectStruct **)malloc(sizeof(DetectStruct*)*config.threadcnt);
+  for(int i=0; i<config.threadcnt; i++){
     DetectStruct *detectstruct = (DetectStruct *)malloc(sizeof(DetectStruct));
     detectstruct->rulestruct = IDSRule;
     detectstruct->packetqueue = packetqueue_array[i];
@@ -326,13 +353,13 @@ int main() {
     exit(0);
   }
 
-  pthread_t *detect_thread_array = (pthread_t *)malloc(sizeof(pthread_t)*threadcnt);
+  pthread_t *detect_thread_array = (pthread_t *)malloc(sizeof(pthread_t)*config.threadcnt);
   if (detect_thread_array == NULL) {
     printf("[DETECT THREAD] 스레드 공간 생성 실패하였습니다. 프로그램을 종료합니다.\n");
     exit(0);
   }
 
-  for (int i=0; i<threadcnt; i++){
+  for (int i=0; i<config.threadcnt; i++){
     if (pthread_create(&detect_thread_array[i], NULL, startDetectThread, (void *)(detectstruct_array[i])) != 0){
       printf("[DETECT THREAD] 생성 실패. 프로그램을 종료합니다.\n");
       exit(0);
@@ -350,7 +377,7 @@ int main() {
   printstruct.packetqueue_array = packetqueue_array;
   printstruct.detectstruct_array = detectstruct_array;
   printstruct.end_flag = &end_flag;
-  printstruct.threadcnt = threadcnt;
+  printstruct.threadcnt = config.threadcnt;
 
   pthread_t PrintThread;
   int print_thr_id = pthread_create(&PrintThread, NULL, start_printthread, (void *)&printstruct);
@@ -364,7 +391,7 @@ int main() {
 
   if(pthread_join(LogThread, NULL)!=0) printf("로그 스레드 종료를 탐지하지 못했지만, 지금까지 진행한 작업은 저장되었습니다.\n");
 
-  for(int i=0; i<threadcnt; i++) {
+  for(int i=0; i<config.threadcnt; i++) {
     if(pthread_join(detect_thread_array[i], NULL) != 0) {
       printf("탐지 스레드 종료를 탐지하지 못했지만, 지금까지 진행한 작업은 저장되었습니다.\n");
       exit(0);
