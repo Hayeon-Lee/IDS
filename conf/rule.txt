@@ -1,0 +1,10 @@
+Rule1|srcip=37.42.128.147;pattern=*k09w9a
+Rule2|srcip=148.192.75.220;pattern=0(.n0+t
+Rule3|srcip=80.203.58.106;pattern=qbm(~y6
+Rule4|srcport=40;dstport=40;srcmac=50:E6:01:86:9D:38;srcip=55.104.67.197;pattern=*k09w9a
+Rule5|pattern=POST
+Rule6|pattern=aaa;srcip=10.0.80.112
+Rule7|srcport=-1;pattern=a
+Rule8|srcip=10.0.80.112;pattern=GET
+Rule9|srcip=1
+Rule10srcip=255
