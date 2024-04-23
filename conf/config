@@ -1,3 +1,4 @@
-queuesize= 1028
-thread= 4
-rule= 100
+queuesize= 1028 //default is 512, max is 4096
+thread= 4 //default is 2, max is 12
+rule= 100 //default is 100, max is 250
+ICMP_FLOOD_DETECT= 1 //[default is 1] - if you choose option 1, you must write the file 'flood_conf'. If you don't want this option, write a number 0.
