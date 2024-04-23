@@ -28,7 +28,7 @@ void *start_readthread(void * readstruct) {
   }
 
   while(1){
-    sleep(1);
+    sleep(1); //파일이 있는지 없는지 확인하고 sleep();
 //디렉토리 내부에 파일이 없으면 usleep()
     DIR * directory = opendir(path);
 
@@ -122,6 +122,8 @@ void accessPacketFiles(DIR * directory,
                   snprintf((char *)(dangernode->rulename),16, "%s", "overflow");
                   snprintf((char *)(dangernode->rulecontent),255, "%s", "overflow");
                   snprintf((char *)(dangernode->protocol),10, "%s", "overflow");
+
+                  //dangerpacketqueue 가 full이 되었을 때 처리
 
                   enqueueDangerPacket(dangerpacketqueue, dangernode);
                   free(value); //overflow된 패킷은 dangerpacket으로 저장되었으므로 없앤다.
