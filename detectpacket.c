@@ -8,19 +8,26 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <stdint.h>
 
 #include "queue.h"
 #include "detectpacket.h"
+#include "hashtable.h"
+
+#define FLOOD -1
+#define SUCCESS 1
+#define FAIL 0
 
 void *startDetectThread(void * detectstruct) { 
   PacketQueue *pkt_queue = ((DetectStruct *)detectstruct)->packetqueue;
   Rule rule = ((DetectStruct *)detectstruct)->rulestruct;
   DangerPacketQueue *danger_pkt_queue = ((DetectStruct *)detectstruct)->dangerpacketqueue;
+  HashTable *hashtable = ((DetectStruct *)detectstruct)->hashtable;
   int *end_flag = ((DetectStruct *)detectstruct)->end_flag;
   long long *thread_dequeue_cnt = &((DetectStruct *)detectstruct)->thread_dequeue_cnt;
+  int8_t *flood_attack_flag = ((DetectStruct *)detectstruct)->flood_attack_flag;
 
   int count = 0; 
-
 
   while(1){
     if (*end_flag == 1) break;
@@ -30,6 +37,8 @@ void *startDetectThread(void * detectstruct) {
       *thread_dequeue_cnt += 1;
       PacketNode node;
       node = makePacketNode(item->packet, item->caplen);
+      free(item->packet);
+      free(item);
 
       //지원되지 않는 프로토콜
       if (node.protocol == -1) {
@@ -38,13 +47,30 @@ void *startDetectThread(void * detectstruct) {
         continue;
       }
 
+      if (*flood_attack_flag == 1) {
+        int isAttack = insertTableNode(hashtable, node.srcip);        
+        if (isAttack == FAIL) {
+          printf("[ERR] HASHTABLE이 정상작동하지 않습니다. FLOOD 감지를 중지합니다. 정책 탐지는 정상적으로 이루어집니다.\n");
+          *flood_attack_flag = 0;
+        }
+
+        if (isAttack == FLOOD) {
+          char flood_msg[50];
+          
+          if (node.protocol == 1) snprintf(flood_msg, 50, "%s FLOOD", "ICMP");
+          if (node.protocol == 6) snprintf(flood_msg, 50, "%s FLOOD", "TCP");
+          if (node.protocol == 17) snprintf(flood_msg, 50, "%s FLOOD", "UDP");
+         
+          if (node.protocol == 1) printf("%s %u\n", flood_msg, node.srcip);
+          DangerPacket *dangernode = makeDangerPacket(node, flood_msg, flood_msg);
+          enqueueDangerPacket(danger_pkt_queue, dangernode);
+        }
+      }
+
       int rulenum = checkNode(node, rule);
       if (rulenum != -1) { //정책 위반
          DangerPacket *dangernode = makeDangerPacket(node, (char *)(rule.rules[rulenum].name), (char *)(rule.rules[rulenum].content) ); 
          enqueueDangerPacket(danger_pkt_queue, dangernode);
-      }
-      else { //정책 통과(=더 이상 필요 없는 패킷)
-        free(item);
       }
     } else {
       count++;
@@ -87,10 +113,9 @@ PacketNode makePacketNode (u_char *packet, int caplen) {
     unsigned short type = readEthernet(packet, &node);
 
     //IPV4
-    if (type == ETHERTYPE_IP && caplen >= 34) {
+    if (type == ETHERTYPE_IP && caplen >= 28) {
       int protocol = readIPV4(packet, &node);
-
-      // TODO define.
+      
       //TCP
       if (protocol == 6 && caplen >= 54) {
         node.protocol = 6;
@@ -101,11 +126,16 @@ PacketNode makePacketNode (u_char *packet, int caplen) {
         node.protocol = 17;
         readUDP(packet, &node);
       }
-      //ICMP
+      //ICMP (ethernet 헤더가 있는 icmp)
       if (protocol == 1 && caplen >= 42) {
         node.protocol = 1;
+        node.srcport = 0;
+        node.dstport = 0;
       }
     }
+    
+    //ethernet 헤더가 없는 icmp
+    //readICMP 만들기 
   }
 
   return node;
@@ -174,7 +204,6 @@ int readTCP(u_char *packet, PacketNode *node) {
 
 int checkNode(PacketNode node, Rule rule){
 
-  //정책에는 pattern이 반드시 있으므로 payload가 0이면 검사하지 않음
   if (node.flag_payload == 0) {
     return -1;
   }
@@ -185,8 +214,6 @@ int checkNode(PacketNode node, Rule rule){
   short result=0;
   
    
-  //flag 는 첫 번째로 정책을 어겼는지 확인 (result = 1 로 초기화)
-  //정책과 노드의 값이 모두 있는데 다르면 더 이상 확인할 필요 없음 
   for(i=0; i<rule.cnt; i++) {
     
      //패턴 검사
@@ -280,6 +307,11 @@ int match_pattern(char *payload, char *pattern, int size_payload){
 
 DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char * rulecontent) {
   DangerPacket * dangernode = (DangerPacket *)malloc(sizeof(DangerPacket));
+  if (dangernode == NULL) {
+    printf("위험한 패킷이 존재하지만 저장에 실패하였습니다. 프로그램을 종료합니다.\n");
+    exit(0);
+  }
+
   char detecttime[30];
   time_t current_time;
   time(&current_time);
