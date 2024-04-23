@@ -123,11 +123,11 @@ void writeLog(LogQueue *queue, sqlite3 *db){
     DangerPacket * packet = dequeueLog(queue);
     if (packet != NULL) {
       int result = insert_data_in_db(db, packet);
+      free(packet);
       if (result == 0) {
         printf("sqlite 저장실패.\n");
         exit(0);
       }
-      free(packet);
     }
   }
 }
