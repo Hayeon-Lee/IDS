@@ -13,11 +13,17 @@
 #include "readpacket.h"
 #include "detectpacket.h"
 #include "logpacket.h"
+#include "hashtable.h"
 
-#define DEFAULT_QUEUESIZE 1028
-#define DEFAULT_THREADCNT 4
+#define DEFAULT_QUEUESIZE 512
+#define DEFAULT_THREADCNT 2
 #define DEFAULT_RULECNT 100 
-#define DEFAULT_PROP_CNT 3
+#define DEFAULT_FLOODFLAG 1
+#define DEFAULT_PROP_CNT 4
+
+#define DEFAULT_TABLESIZE 50
+#define DEFAULT_TIMELIMIT 1
+#define DEFAULT_COUNT 10
 
 #define SRCMAC 1
 #define DSTMAC 2
@@ -35,6 +41,7 @@ typedef struct {
   int32_t queuesize;
   int32_t threadcnt;
   int32_t rulecnt;
+  int8_t floodflag;
   int32_t propcnt;
 } Config;
 
@@ -73,11 +80,11 @@ int check_rule_valid(char *content, Rule *IDSRule){
 
   //initialize
   IDSRule->rules[IDSRule->cnt].pattern[0] = '\0';
-  IDSRule->rules[IDSRule->cnt].srcip = -1;
-  IDSRule->rules[IDSRule->cnt].dstip = -1;
-  IDSRule->rules[IDSRule->cnt].protocol = -1;
-  IDSRule->rules[IDSRule->cnt].srcport = -1;
-  IDSRule->rules[IDSRule->cnt].dstport = -1;
+  IDSRule->rules[IDSRule->cnt].srcip = INITIALIZE;
+  IDSRule->rules[IDSRule->cnt].dstip = INITIALIZE;
+  IDSRule->rules[IDSRule->cnt].protocol = INITIALIZE;
+  IDSRule->rules[IDSRule->cnt].srcport = INITIALIZE;
+  IDSRule->rules[IDSRule->cnt].dstport = INITIALIZE;
 
   //; 기준으로 나누기 (요소 기준으로 나누기)
   if (front) {
@@ -85,7 +92,7 @@ int check_rule_valid(char *content, Rule *IDSRule){
       //= 기준으로 나누기 (요소 내부 값과 키 나누기)
       char *value;
       char *prop = strtok_r(front, "=", &value);
-      int type = -1;
+      int type = INITIALIZE;
       
       struct in_addr ip;
       char tmp[1461];
@@ -220,6 +227,7 @@ void parse_config_file (Config* config)  {
   FILE *configfile = fopen("./conf/config", "r");
   if (configfile == NULL) isFile = 0;
   else{
+    printf("==========================설정파일 확인을 진행합니다.======================\n");
     char line[MAX_CONFIG_LEN];
     char *pline;
 
@@ -232,19 +240,36 @@ void parse_config_file (Config* config)  {
 
         if (strcmp(name, "queuesize")==0) {
           config->queuesize = atoi(content);
+          if(config->queuesize < 512 || config->queuesize > 4096) {
+            printf("[ERR: QUEUESIZE] 큐 사이즈(%d)가 범위를 벗어났습니다. 범위는 512 이상, 4096 이하입니다. 기본값인 512로 설정합니다.\n", config->queuesize);
+            config->queuesize = 512;
+          }
         } else if (strcmp(name, "thread")==0){
           config->threadcnt = atoi(content);
-        } else {
+          if(config->threadcnt < 2 || config->threadcnt > 12) {
+            printf("[ERR: THREAD] 스레드(%d)가 범위를 벗어났습니다. 범위는 2 이상, 12 이하입니다. 기본값인 2로 설정합니다.\n", config->threadcnt);
+            config->threadcnt = 2;
+          }
+        } else if (strcmp(name, "rule")==0){
          config->rulecnt = atoi(content);
+         if (config->rulecnt <= 0 || config->rulecnt>250){
+            printf("[ERR: RULECNT] 정책 개수(%d)가 범위를 벗어났습니다. 범위는 1 이상 250 이하입니다. 기본값인 100을 설정합니다.\n", config->rulecnt);
+            config->rulecnt = 100;
+         } else if (strcmp(name, "ICMP_FLOOD_DETECT")==0){
+            config->floodflag = atoi(content);
+            if (config->floodflag != 1 && config->floodflag != 0) {
+              printf("[ERR: FLOODDETECT] FLOOD 공격 감지 여부(%d)가 올바른 값이 아닙니다. 1 또는 0을 입력해야 합니다. 기본값인 1을 설정합니다.\n", config->floodflag);
+              config->floodflag = 1;
+            }
+         }  
         }
       }
     }
   }
   
-  system("clear");
   if (!isFile) printf("설정파일을 열지 못해 기본값으로 진행합니다.\n");
-  printf("==========================설정파일 확인을 진행합니다.======================\n");
-  printf("[큐 사이즈: %d]\n[스레드 개수: %d]\n[정책 개수: %d]\n", config->queuesize, config->threadcnt, config->rulecnt);
+  printf("==========================설정파일 할당값을 확인합니다.======================\n");
+  printf("[큐 사이즈: %d]\n[스레드 개수: %d]\n[정책 개수: %d]\n[FLOOD 탐지 여부: %d]\n", config->queuesize, config->threadcnt, config->rulecnt, config->floodflag);
   printf("작성하신 내용이 맞다면 y를, 아니라면 아무 문자나 입력해주세요.: ");
   char order;
   scanf("%c", &order);
@@ -256,6 +281,58 @@ void parse_config_file (Config* config)  {
     printf("============================설정파일 확인을 마쳤습니다.==========================\n");
     system("clear");
   }
+}
+
+void parse_flood_conf_file (FloodConfig *flood_config) {
+
+  FILE *flood_conf_file = fopen("./conf/flood_conf", "r");
+  if (flood_conf_file != NULL) {
+    printf("==========================FLOOD ATTACK 설정파일 확인을 진행합니다.======================\n");
+    char line[MAX_CONFIG_LEN];
+    char *pline;
+
+    while(!feof(flood_conf_file)){
+      pline = fgets(line, MAX_CONFIG_LEN, flood_conf_file);
+      if (pline){
+        char *content;
+        char *name = strtok_r(pline, "=", &content);
+        if (strcmp(name, "tablesize")==0){
+          flood_config->tablesize = atoi(content);
+          if(flood_config->tablesize < 1 || flood_config->tablesize >1000000000) {
+            printf("[ERR: TABLESIZE] 테이블 사이즈(%d)가 범위를 벗어났습니다. 범위는 50 이상, 250 이하입니다. 기본값인 50으로 설정합니다.\n", flood_config->tablesize);
+            flood_config->tablesize = 50;
+          } 
+        } else if (strcmp(name, "timelimit")==0) {
+          flood_config->timelimit = atoi(content);
+          if(flood_config->timelimit < 0 || flood_config->timelimit > 10000000000) {
+            printf("[ERR: TIMELIMIT] 기준 시간(%d)가 범위를 벗어났습니다. 범위는 1 이상 10 이하입니다. 기본값인 1로 설정합니다.\n", flood_config->timelimit);
+            flood_config->timelimit = 1;
+          } 
+        } else if (strcmp(name, "count")==0){
+          flood_config->count = atoi(content);
+          if (flood_config->count < 10 || flood_config->count > 100000000000) {
+            printf("[ERR: COUNT] 기준 시간(%d)가 범위를 벗어났습니다. 범위는 10 이상 100 이하입니다. 기본값인 10으로 설정합니다.\n", flood_config->count);
+            flood_config->count = 10;
+          }
+        }
+      }
+    }
+  }
+  else printf("FLOOD 설정 파일을 열지 못해 기본값으로 진행합니다.\n");
+  printf("==========================FLOOD 설정파일 할당값을 확인합니다.======================\n");
+  printf("[테이블 사이즈: %d]\n[기준 시간: %d]\n[기준 개수: %d]\n", flood_config->tablesize, flood_config->timelimit, flood_config->count);
+  printf("작성하신 내용이 맞다면 y를, 아니라면 아무 문자나 입력해주세요.: ");
+  
+  char order;
+  getchar();
+  scanf("%c", &order);
+  if (order!='y') {
+    printf("flood 설정 파일 재작성 후 프로그램 재시작해주세요.\n");
+    exit(0);
+  }
+  
+  printf("==========================FLOOD 설정파일 확인을 마쳤습니다.======================\n");
+  system("clear");
 }
 
 void * start_printthread(void * printstruct) {
@@ -295,14 +372,29 @@ void * start_printthread(void * printstruct) {
 }
 
 int main() { 
- 
+
+  //기본 설정 파일을 정의한다
   Config config;
   config.queuesize = DEFAULT_QUEUESIZE;
   config.threadcnt = DEFAULT_THREADCNT;
   config.rulecnt = DEFAULT_RULECNT;
+  config.floodflag = DEFAULT_FLOODFLAG;
   config.propcnt = DEFAULT_PROP_CNT;
-
   parse_config_file(&config);
+
+  //flood 정책 설정 파일을 정의한다
+  FloodConfig flood_config;
+  flood_config.tablesize = DEFAULT_TABLESIZE;
+  flood_config.timelimit = DEFAULT_TIMELIMIT;
+  flood_config.count = DEFAULT_COUNT;
+  
+  HashTable hashtable;
+
+  if (config.floodflag == 1) {
+    parse_flood_conf_file(&flood_config);
+    initHashTable(&hashtable, &flood_config);
+  }
+
   
   //Initialize Rule Structure
   Rule IDSRule;
@@ -337,8 +429,10 @@ int main() {
     detectstruct->rulestruct = IDSRule;
     detectstruct->packetqueue = packetqueue_array[i];
     detectstruct->dangerpacketqueue = &dangerpacketqueue;
+    detectstruct->hashtable = &hashtable;
     detectstruct->end_flag = &end_flag;
     detectstruct->thread_dequeue_cnt = 0;
+    detectstruct->flood_attack_flag = &(config.floodflag);
     detectstruct_array[i] = detectstruct;
   }
 
