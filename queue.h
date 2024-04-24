@@ -1,7 +1,7 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 
-#define PROTOCOL_NAME_LEN 10
+#define PROTOCOL_NAME_LEN 15
 #define MAC_ADDR_LEN 18 
 #define IP_ADDR_LEN 16
 #define PAYLOAD_LEN 1461
@@ -15,6 +15,7 @@
 #include <pthread.h>
 #include <pcap.h>
 #include <stdint.h>
+#include "hashtable.h"
 
 typedef struct {
   unsigned char name[RULE_NAME_LEN];
@@ -79,6 +80,10 @@ typedef struct {
   pthread_mutex_t mutex;
   DangerPacket **items;
   int MAX_QUEUE_SIZE;
+
+  long long total_enqueue_cnt;
+  long long total_dequeue_cnt;
+  long long total_drop_cnt;
 } DangerPacketQueue;
 
 typedef struct {
@@ -92,9 +97,12 @@ typedef struct {
   Rule rulestruct; //정책
   PacketQueue *packetqueue; //패킷큐
   DangerPacketQueue *dangerpacketqueue; //위험패킷큐
+  HashTable *hashtable; //해시테이블
+
   int *end_flag;
 
   long long thread_dequeue_cnt;
+  int8_t *flood_attack_flag;
 } DetectStruct;
 
 typedef struct {
