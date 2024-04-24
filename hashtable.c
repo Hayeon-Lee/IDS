@@ -1,19 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <openssl/sha.h>
+
 #include "hashtable.h"
 
 #define FLOOD -1
 #define SUCCESS 1
 #define FAIL 0
-
-#define NOT_EMPTY 2
-#define EMPTY 3
+#define EMPTY 1
+#define NOT_EMPTY 0
 
 void initHashTable(HashTable *hashtable, FloodConfig *flood_config ){
   hashtable->table = (HashTableNode **)malloc(sizeof(HashTableNode*)*flood_config->tablesize);
-
-  for(int i=0; i<flood_config->tablesize; i++) hashtable->table[i] = NULL;
+  memset(hashtable->table, 0x00, sizeof(HashTableNode *)*flood_config->tablesize);
 
   hashtable->tablesize = flood_config->tablesize;
   hashtable->timelimit = flood_config->timelimit;
@@ -23,11 +23,8 @@ void initHashTable(HashTable *hashtable, FloodConfig *flood_config ){
   return;
 }
 
-int checkHashTable(HashTable *hashtable, unsigned int srcip) {
-  int key = srcip % hashtable->tablesize;
-  
-  if (hashtable->table[key]) return NOT_EMPTY;
-  return EMPTY;
+int isEmptyHashTable(HashTable *hashtable, int key) { 
+  return (hashtable->table[key]) ? NOT_EMPTY : EMPTY;
 }
 
 HashTableNode* makeTableNode(unsigned int srcip) {
@@ -48,41 +45,56 @@ HashTableNode* makeTableNode(unsigned int srcip) {
   return node;
 }
 
+int hashSrcIp (unsigned int srcip) {
+ 
+  void *srcip_void_pointer = (void *)&(srcip);
+  char *srcip_str= (char *)srcip_void_pointer;
+  unsigned char string_srcip_hash[17];
+  SHA256((const unsigned char *)srcip_str, 16, string_srcip_hash);
+
+  int *integer_srcip_hash = (int *)string_srcip_hash;
+  return *integer_srcip_hash;
+}
+
 int insertTableNode(HashTable *hashtable, unsigned int srcip){
   pthread_mutex_lock(&(hashtable->mutex));
 
-  int isEmpty = checkHashTable(hashtable, srcip);
-  int key = srcip % (hashtable->tablesize);
+  int key = hashSrcIp(srcip) % (hashtable->tablesize);
+  int isEmpty = isEmptyHashTable(hashtable, key);
 
-  time_t current_time;
-  time(&current_time);
-  double elapsed_time = current_time - hashtable->table[key]->detecttime;
-  
-  if (isEmpty == EMPTY) {
+  struct timespec detect_ts, current_ts;
+  clock_gettime(CLOCK_REALTIME, &current_ts);
+
+  if (isEmpty) {
     hashtable->table[key] = makeTableNode(srcip);
     pthread_mutex_unlock(&(hashtable->mutex));
     return SUCCESS;
   }
 
+  detect_ts.tv_sec = hashtable->table[key]->detecttime;
+  detect_ts.tv_nsec = 0;
+  long sec_diff = current_ts.tv_sec - detect_ts.tv_sec;
+  
   //not empty 코드
-  if (elapsed_time > hashtable->timelimit) { //시간보다 지났으면 초기화
+  if (sec_diff > hashtable->timelimit) { //시간보다 지났으면 초기화
     free(hashtable->table[key]);
     hashtable->table[key] = makeTableNode(srcip);
     pthread_mutex_unlock(&(hashtable->mutex));
     return SUCCESS;
   }
 
-  if (elapsed_time <= hashtable->timelimit) { //시간보다 지나지 않았다면 비교
-    if (hashtable->table[key]->count >= (hashtable->count)-1) { //개수가 넘었다면
+  if (sec_diff <= hashtable->timelimit) { //시간보다 지나지 않았다면 비교
+    hashtable->table[key]->count += 1;
+    if (hashtable->table[key]->count >= hashtable->count) { //개수가 넘었다면
         free(hashtable->table[key]);
         hashtable->table[key] = NULL;
         pthread_mutex_unlock(&(hashtable->mutex));
         return FLOOD;     
     }
-    hashtable->table[key]->count += 1;
     pthread_mutex_unlock(&(hashtable->mutex));
     return SUCCESS;
   }
 
+  pthread_mutex_unlock(&(hashtable->mutex));
   return FAIL;
 }
