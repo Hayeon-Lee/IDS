@@ -9,14 +9,19 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdint.h>
+#include <limits.h>
 
 #include "queue.h"
 #include "detectpacket.h"
 #include "hashtable.h"
 
+#define DANGER -1
 #define FLOOD -1
 #define SUCCESS 1
 #define FAIL 0
+
+#define ICMP 1
+#define ECHO_REQUEST 8
 
 void *startDetectThread(void * detectstruct) { 
   PacketQueue *pkt_queue = ((DetectStruct *)detectstruct)->packetqueue;
@@ -47,7 +52,16 @@ void *startDetectThread(void * detectstruct) {
         continue;
       }
 
-      if (*flood_attack_flag == 1) {
+     
+      if (node.protocol == ICMP) {
+        if (node.dstip == UINT_MAX && node.type == ECHO_REQUEST) {
+          DangerPacket * dangernode = makeDangerPacket(node, "SMURF", "SMURF");
+          enqueueDangerPacket(danger_pkt_queue, dangernode);
+          continue;
+        }
+      }
+
+      if (*flood_attack_flag == 1 && node.protocol == ICMP && node.type == ECHO_REQUEST) {
         int isAttack = insertTableNode(hashtable, node.srcip);        
         if (isAttack == FAIL) {
           printf("[ERR] HASHTABLE이 정상작동하지 않습니다. FLOOD 감지를 중지합니다. 정책 탐지는 정상적으로 이루어집니다.\n");
@@ -58,17 +72,15 @@ void *startDetectThread(void * detectstruct) {
           char flood_msg[50];
           
           if (node.protocol == 1) snprintf(flood_msg, 50, "%s FLOOD", "ICMP");
-          if (node.protocol == 6) snprintf(flood_msg, 50, "%s FLOOD", "TCP");
-          if (node.protocol == 17) snprintf(flood_msg, 50, "%s FLOOD", "UDP");
          
-          if (node.protocol == 1) printf("%s %u\n", flood_msg, node.srcip);
           DangerPacket *dangernode = makeDangerPacket(node, flood_msg, flood_msg);
           enqueueDangerPacket(danger_pkt_queue, dangernode);
+          continue;
         }
       }
 
       int rulenum = checkNode(node, rule);
-      if (rulenum != -1) { //정책 위반
+      if (rulenum != DANGER) { //정책 위반
          DangerPacket *dangernode = makeDangerPacket(node, (char *)(rule.rules[rulenum].name), (char *)(rule.rules[rulenum].content) ); 
          enqueueDangerPacket(danger_pkt_queue, dangernode);
       }
@@ -100,12 +112,21 @@ void initPacketNode(PacketNode *node){
   //payload 유무, payload 사이즈
   node->flag_payload = 0;
   node->size_payload = 0;
+
+  node->type = -1;
 }
 
 PacketNode makePacketNode (u_char *packet, int caplen) { 
   PacketNode node;
   initPacketNode(&node);
   
+  //icmp 탐지
+  if (caplen >= 28 && isICMP(packet)) {
+    node.protocol = 1;
+    readICMP(packet, &node);
+    return node;
+  }
+
   //이더넷 헤더일 경우
   if (caplen >= 14) {
     //node 길이 초기화
@@ -126,18 +147,15 @@ PacketNode makePacketNode (u_char *packet, int caplen) {
         node.protocol = 17;
         readUDP(packet, &node);
       }
-      //ICMP (ethernet 헤더가 있는 icmp)
+      //ICMP (ethernet 헤더가 있는 특수한 케이스 icmp)
       if (protocol == 1 && caplen >= 42) {
         node.protocol = 1;
         node.srcport = 0;
         node.dstport = 0;
+        read_ether_icmp(packet, &node);
       }
     }
-    
-    //ethernet 헤더가 없는 icmp
-    //readICMP 만들기 
   }
-
   return node;
 }
 
@@ -199,6 +217,35 @@ int readTCP(u_char *packet, PacketNode *node) {
     }
   }    
 
+  return 0;
+}
+
+int isICMP(u_char *packet){
+  struct ip *ip_header = (struct ip*)packet;
+  return (ip_header->ip_p==1) ? 1 : 0; 
+}
+
+int readICMP(u_char *packet, PacketNode *node) {
+  struct ip *ip_header = (struct ip*)packet;
+  node->srcip = htonl(ip_header->ip_src.s_addr);
+  node->dstip = htonl(ip_header->ip_dst.s_addr);
+  node->protocol = ip_header->ip_p;
+  node->srcport = 0;
+  node->dstport = 0;
+
+  struct icmphdr *icmp_header = (struct icmphdr *)(packet + sizeof(struct ip));
+  node->type = icmp_header->type; 
+  return 0;
+}
+
+int read_ether_icmp(u_char *packet, PacketNode *node){
+  int ether_size = sizeof(struct ether_header);
+  int add_size = ether_size + 20;
+
+  struct icmphdr *icmp_header = (struct icmphdr *)(packet + add_size);
+  node->type = icmp_header->type;
+  node->srcport = 0;
+  node->dstport = 0;
   return 0;
 }
 
@@ -324,7 +371,7 @@ DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char * rulecon
   if (node.protocol == -1) {
       snprintf((char *)(dangernode->rulename), 16, "%s", rulename);
       snprintf((char *)(dangernode->rulecontent), 225, "%s", rulecontent);
-      snprintf((char *)(dangernode->protocol), 10, "%s", "not support");
+      snprintf((char *)(dangernode->protocol), 15, "%s", "not support");
     return dangernode;
   }
     
@@ -349,22 +396,25 @@ DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char * rulecon
   }
 
   if (node.dstip!=-1){
+
     char tmpdstip[16];
     struct in_addr addr;
 
     addr.s_addr = htonl(node.dstip);
     inet_ntop(AF_INET, &addr, tmpdstip, INET_ADDRSTRLEN);
-    
     snprintf((char *)(dangernode->dstip), 16, "%s", tmpdstip);
   }
 
   if (node.protocol!=-1){
     if (node.protocol == 6) {
-      snprintf((char *)(dangernode->protocol), 10, "%s", "tcp");
+      snprintf((char *)(dangernode->protocol), 15, "%s", "tcp");
     }
     if (node.protocol == 17) {
-      snprintf((char *)(dangernode->protocol), 10, "%s", "udp");
-    } 
+      snprintf((char *)(dangernode->protocol), 15, "%s", "udp");
+    }
+    if (node.protocol == 1){
+      snprintf((char *)(dangernode->protocol), 15, "%s", "icmp");
+    }
   }
 
   if (node.srcport != -1) {
