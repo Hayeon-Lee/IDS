@@ -12,6 +12,7 @@ void initPacketQueue(PacketQueue *queue, int queuesize) {
   queue->packet = (Packet **)malloc(sizeof(Packet*)*queuesize);
 
   queue->total_enqueue_cnt = 0;
+  queue->total_dequeue_cnt = 0;
   queue->total_drop_cnt = 0;
 
   pthread_mutex_init(&(queue->mutex), NULL);
@@ -59,13 +60,20 @@ void initDangerPacketQueue(DangerPacketQueue *queue, int queuesize) {
   queue->MAX_QUEUE_SIZE = queuesize;
 
   queue->items = (DangerPacket **)malloc(sizeof(DangerPacket *)*queuesize);
+  
+  queue->total_enqueue_cnt = 0;
+  queue->total_dequeue_cnt = 0;
+  queue->total_drop_cnt = 0;
+  
   pthread_mutex_init(&(queue->mutex), NULL);
 }
 
 void enqueueDangerPacket(DangerPacketQueue *queue,DangerPacket *value) {
   pthread_mutex_lock(&(queue->mutex));
+  queue->total_enqueue_cnt ++;
 
   if (queue->count >= queue->MAX_QUEUE_SIZE) {
+    queue->total_drop_cnt ++;
     pthread_mutex_unlock(&(queue->mutex));
     return;
   } 
@@ -87,6 +95,7 @@ DangerPacket * dequeueDangerPacket(DangerPacketQueue *queue) {
   item = queue->items[queue->front];
   queue->front = ((queue->front+1))%(queue->MAX_QUEUE_SIZE);
   queue->count -= 1;
+  queue->total_dequeue_cnt ++;
   pthread_mutex_unlock(&(queue->mutex));
 
   return item;
