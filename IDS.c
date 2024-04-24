@@ -16,14 +16,14 @@
 #include "hashtable.h"
 
 #define DEFAULT_QUEUESIZE 512
-#define DEFAULT_THREADCNT 2
+#define DEFAULT_THREADCNT 6
 #define DEFAULT_RULECNT 100 
 #define DEFAULT_FLOODFLAG 1
 #define DEFAULT_PROP_CNT 4
 
-#define DEFAULT_TABLESIZE 50
-#define DEFAULT_TIMELIMIT 1
-#define DEFAULT_COUNT 10
+#define DEFAULT_TABLESIZE 1000000
+#define DEFAULT_TIMELIMIT 10
+#define DEFAULT_COUNT 1000
 
 #define SRCMAC 1
 #define DSTMAC 2
@@ -48,6 +48,7 @@ typedef struct {
 typedef struct {
   PacketQueue **packetqueue_array;
   DetectStruct **detectstruct_array; 
+  DangerPacketQueue *dangerpacketqueue;
   int32_t *end_flag;
   int32_t threadcnt;
 } PrintStruct;
@@ -246,9 +247,9 @@ void parse_config_file (Config* config)  {
           }
         } else if (strcmp(name, "thread")==0){
           config->threadcnt = atoi(content);
-          if(config->threadcnt < 2 || config->threadcnt > 12) {
-            printf("[ERR: THREAD] 스레드(%d)가 범위를 벗어났습니다. 범위는 2 이상, 12 이하입니다. 기본값인 2로 설정합니다.\n", config->threadcnt);
-            config->threadcnt = 2;
+          if(config->threadcnt < 6 || config->threadcnt > 12) {
+            printf("[ERR: THREAD] 스레드(%d)가 범위를 벗어났습니다. 범위는 6 이상, 12 이하입니다. 기본값인 6로 설정합니다.\n", config->threadcnt);
+            config->threadcnt = 6;
           }
         } else if (strcmp(name, "rule")==0){
          config->rulecnt = atoi(content);
@@ -298,21 +299,21 @@ void parse_flood_conf_file (FloodConfig *flood_config) {
         char *name = strtok_r(pline, "=", &content);
         if (strcmp(name, "tablesize")==0){
           flood_config->tablesize = atoi(content);
-          if(flood_config->tablesize < 1 || flood_config->tablesize >1000000000) {
-            printf("[ERR: TABLESIZE] 테이블 사이즈(%d)가 범위를 벗어났습니다. 범위는 50 이상, 250 이하입니다. 기본값인 50으로 설정합니다.\n", flood_config->tablesize);
-            flood_config->tablesize = 50;
+          if(flood_config->tablesize < 1000000 || flood_config->tablesize > 10000000) {
+            printf("[ERR: TABLESIZE] 테이블 사이즈(%d)가 범위를 벗어났습니다. 범위는 1000000(백만) 이상, 10000000(천만) 이하입니다. 기본값인 백만으로 설정합니다.\n", flood_config->tablesize);
+            flood_config->tablesize = 1000000;
           } 
         } else if (strcmp(name, "timelimit")==0) {
           flood_config->timelimit = atoi(content);
-          if(flood_config->timelimit < 0 || flood_config->timelimit > 10000000000) {
-            printf("[ERR: TIMELIMIT] 기준 시간(%d)가 범위를 벗어났습니다. 범위는 1 이상 10 이하입니다. 기본값인 1로 설정합니다.\n", flood_config->timelimit);
-            flood_config->timelimit = 1;
+          if(flood_config->timelimit < 10) {
+            printf("[ERR: TIMELIMIT] 기준 시간(%d)가 범위를 벗어났습니다. 범위는 10 이상입니다. 기본값인 10으로 설정합니다.\n", flood_config->timelimit);
+            flood_config->timelimit = 10;
           } 
         } else if (strcmp(name, "count")==0){
           flood_config->count = atoi(content);
-          if (flood_config->count < 10 || flood_config->count > 100000000000) {
-            printf("[ERR: COUNT] 기준 시간(%d)가 범위를 벗어났습니다. 범위는 10 이상 100 이하입니다. 기본값인 10으로 설정합니다.\n", flood_config->count);
-            flood_config->count = 10;
+          if (flood_config->count < 1000 || flood_config->count > 100000) {
+            printf("[ERR: COUNT] 기준 탐지 개수(%d)가 범위를 벗어났습니다. 범위는 1000 이상 100000(십만) 이하입니다. 기본값인 1000으로 설정합니다.\n", flood_config->count);
+            flood_config->count = 1000;
           }
         }
       }
@@ -339,6 +340,7 @@ void * start_printthread(void * printstruct) {
   PrintStruct *print_struct = (PrintStruct *)printstruct;
   PacketQueue **packetqueue_array = print_struct -> packetqueue_array;
   DetectStruct **detectstruct_array = print_struct -> detectstruct_array;
+  DangerPacketQueue *dangerpacketqueue = print_struct -> dangerpacketqueue;
   int threadcnt = print_struct->threadcnt;
   int *end_flag = print_struct->end_flag;
 
@@ -354,7 +356,7 @@ void * start_printthread(void * printstruct) {
     int total_drop = 0;
 
     for(int i=0; i<threadcnt; i++) {
-      printf("===========[QUEUE(THREAD) %d]==========\n", i+1);
+      printf("===================[PACKET QUEUE(THREAD) %d]===============\n", i+1);
       printf("[ENQUEUE]: %lld ", packetqueue_array[i]->total_enqueue_cnt);
       printf("[DEQUEUE]: %lld ", detectstruct_array[i]->thread_dequeue_cnt);
       printf("[DROP]: %lld [%.2lf]\n", packetqueue_array[i]->total_drop_cnt,
@@ -364,8 +366,15 @@ void * start_printthread(void * printstruct) {
       total_drop += packetqueue_array[i] -> total_drop_cnt;
     }
     printf("\n");
-    printf("[평균 drop]: %.2lf\n", total_drop/(float)total_enqueue * 100.0);
-    printf("======================================\n");
+    printf("[PACKET QUEUE 평균 drop]: %.2lf\n\n", total_drop/(float)total_enqueue * 100.0);
+
+    printf("=====================[DANGER PACKET QUEUE]======================\n");
+    printf("[ENQUEUE]: %lld ", dangerpacketqueue->total_enqueue_cnt);
+    printf("[DEQUEUE]: %lld ", dangerpacketqueue->total_dequeue_cnt);
+    printf("[DROP]: %lld [%.2lf]\n", dangerpacketqueue->total_drop_cnt, dangerpacketqueue->total_drop_cnt/(float)dangerpacketqueue->total_enqueue_cnt*100.0);
+    printf("\n\n");
+
+    printf("#################################################################\n");
   }
 
   return NULL;
@@ -470,6 +479,7 @@ int main() {
   PrintStruct printstruct;
   printstruct.packetqueue_array = packetqueue_array;
   printstruct.detectstruct_array = detectstruct_array;
+  printstruct.dangerpacketqueue = &dangerpacketqueue;
   printstruct.end_flag = &end_flag;
   printstruct.threadcnt = config.threadcnt;
 
