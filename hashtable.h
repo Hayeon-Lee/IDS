@@ -31,4 +31,6 @@ void initHashTable(HashTable *hashtable, FloodConfig *flood_config);
 int hashSourceTp(HashTable *hashtable, unsigned int srcip);
 HashTableNode* makeTableNode(unsigned int srcip);
 int insertTableNode(HashTable *hashtable, unsigned int srcip);
+int isEmptyHashTable(HashTable *hashtable, int key);
+int hashSrcIpKey(unsigned int srcip);
 #endif
