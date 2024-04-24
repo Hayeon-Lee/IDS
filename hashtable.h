@@ -14,13 +14,21 @@ typedef struct {
 } FloodConfig;
 
 typedef struct {
+  int nodecnt;
+  struct HashTableNode *next;
+} HashTableHead;
+
+typedef struct {
   unsigned int srcip;
   int count;
   time_t detecttime;
+
+  struct HashTableNode *next;
+  struct HashTableNode *prev;
 } HashTableNode;
 
 typedef struct {
-  HashTableNode **table;
+  HashTableHead *node;
   int tablesize;
   int timelimit;
   int count;
@@ -28,9 +36,9 @@ typedef struct {
 } HashTable;
 
 void initHashTable(HashTable *hashtable, FloodConfig *flood_config);
-int hashSourceTp(HashTable *hashtable, unsigned int srcip);
-HashTableNode* makeTableNode(unsigned int srcip);
-int insertTableNode(HashTable *hashtable, unsigned int srcip);
-int isEmptyHashTable(HashTable *hashtable, int key);
-int hashSrcIpKey(unsigned int srcip);
+//int hashSourceTp(HashTable *hashtable, unsigned int srcip);
+//HashTableNode* makeTableNode(unsigned int srcip);
+//int insertTableNode(HashTable *hashtable, unsigned int srcip);
+//int isEmptyHashTable(HashTable *hashtable, int key);
+//int hashSrcIpKey(unsigned int srcip);
 #endif
