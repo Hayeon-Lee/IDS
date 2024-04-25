@@ -13,19 +13,20 @@ typedef struct {
   int32_t count;
 } FloodConfig;
 
-typedef struct {
-  int nodecnt;
-  struct HashTableNode *next;
-} HashTableHead;
 
-typedef struct {
+typedef struct _HashTableNode {
   unsigned int srcip;
   int count;
   time_t detecttime;
 
-  struct HashTableNode *next;
-  struct HashTableNode *prev;
+  struct _HashTableNode *prev;
+  struct _HashTableNode *next;
 } HashTableNode;
+
+typedef struct {
+  int nodecnt;
+  HashTableNode *next;
+} HashTableHead;
 
 typedef struct {
   HashTableHead *node;
@@ -36,9 +37,11 @@ typedef struct {
 } HashTable;
 
 void initHashTable(HashTable *hashtable, FloodConfig *flood_config);
-//int hashSourceTp(HashTable *hashtable, unsigned int srcip);
-//HashTableNode* makeTableNode(unsigned int srcip);
-//int insertTableNode(HashTable *hashtable, unsigned int srcip);
-//int isEmptyHashTable(HashTable *hashtable, int key);
-//int hashSrcIpKey(unsigned int srcip);
+int isEmptyHashTable(HashTable *hashtable, int key);
+HashTableNode* makeTableNode(unsigned int srcip);
+HashTableNode* findTargetLocation(HashTable *hashtable, int key, unsigned srcip);
+int insertNode(HashTable *hashtable, int key, unsigned int srcip, int isEmpty);
+int hashSourceTp(HashTable *hashtable, unsigned int srcip);
+int hasSrcIp(unsigned int srcip);
+int checkTable(HashTable *hashtable, unsigned int srcip);
 #endif
