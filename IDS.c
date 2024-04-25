@@ -344,24 +344,35 @@ void * start_printthread(void * printstruct) {
   int threadcnt = print_struct->threadcnt;
   int *end_flag = print_struct->end_flag;
 
+  long long *backup_packetqueue_thread_enqueue = (long long *)calloc(threadcnt, sizeof(long long));
+  long long *backup_packetqueue_thread_dequeue = (long long *)calloc(threadcnt, sizeof(long long));
+
+  int backup_dangerpacketqueue_total_enqueue_cnt = 0;
+  int backup_dangerpacketqueue_total_dequeue_cnt = 0;
 
   printf("[안내: 스레드는 자신의 번호와 같은 큐로부터 dequeue합니다.]\n\n");
 
   while(1){
     sleep(1);
 
-    if (*end_flag == 1) break;
+    if (*end_flag == 1) {
+      free(backup_packetqueue_thread_enqueue);
+      break;
+    }
 
     int total_enqueue = 0;
     int total_drop = 0;
 
     for(int i=0; i<threadcnt; i++) {
       printf("===================[PACKET QUEUE(THREAD) %d]===============\n", i+1);
-      printf("[ENQUEUE]: %lld ", packetqueue_array[i]->total_enqueue_cnt);
-      printf("[DEQUEUE]: %lld ", detectstruct_array[i]->thread_dequeue_cnt);
+      printf("[ENQUEUE]: %lld (%lld/sec)\n", packetqueue_array[i]->total_enqueue_cnt, packetqueue_array[i]->total_enqueue_cnt - backup_packetqueue_thread_enqueue[i]);
+      printf("[DEQUEUE]: %lld (%lld/sec)\n", detectstruct_array[i]->thread_dequeue_cnt, detectstruct_array[i]->thread_dequeue_cnt - backup_packetqueue_thread_dequeue[i]);
       printf("[DROP]: %lld [%.2lf]\n", packetqueue_array[i]->total_drop_cnt,
                                      packetqueue_array[i]->total_drop_cnt/(float)packetqueue_array[i]->total_enqueue_cnt*100.0);
       
+      backup_packetqueue_thread_enqueue[i] = packetqueue_array[i]->total_enqueue_cnt;
+      backup_packetqueue_thread_dequeue[i] = detectstruct_array[i]->thread_dequeue_cnt;
+
       total_enqueue += packetqueue_array[i]->total_enqueue_cnt;
       total_drop += packetqueue_array[i] -> total_drop_cnt;
     }
@@ -369,9 +380,12 @@ void * start_printthread(void * printstruct) {
     printf("[PACKET QUEUE 평균 drop]: %.2lf\n\n", total_drop/(float)total_enqueue * 100.0);
 
     printf("=====================[DANGER PACKET QUEUE]======================\n");
-    printf("[ENQUEUE]: %lld ", dangerpacketqueue->total_enqueue_cnt);
-    printf("[DEQUEUE]: %lld ", dangerpacketqueue->total_dequeue_cnt);
+    printf("[ENQUEUE]: %lld (%lld/sec)\n", dangerpacketqueue->total_enqueue_cnt, dangerpacketqueue->total_enqueue_cnt - backup_dangerpacketqueue_total_enqueue_cnt);
+    printf("[DEQUEUE]: %lld (%lld/sec)\n", dangerpacketqueue->total_dequeue_cnt, dangerpacketqueue->total_dequeue_cnt - backup_dangerpacketqueue_total_dequeue_cnt);
     printf("[DROP]: %lld [%.2lf]\n", dangerpacketqueue->total_drop_cnt, dangerpacketqueue->total_drop_cnt/(float)dangerpacketqueue->total_enqueue_cnt*100.0);
+
+    backup_dangerpacketqueue_total_enqueue_cnt = dangerpacketqueue->total_enqueue_cnt;
+    backup_dangerpacketqueue_total_dequeue_cnt = dangerpacketqueue->total_dequeue_cnt;
     printf("\n\n");
 
     printf("#################################################################\n");
