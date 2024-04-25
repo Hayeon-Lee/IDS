@@ -1,9 +1,9 @@
 CC = gcc
-CFLAGS = -g -O2 -Wall -D_BSD_SOURCE
-LIBS = -lpthread -lpcap -lnsl -lsqlite3
+CFLAGS = -g -O2 -Wall -D_BSD_SOURCE -I/usr/local/openssl/include
+LIBS = -lpthread -lpcap -lnsl -lsqlite3 -lssl -L/usr/local/openssl/lib -lcrypto
 TARGET = IDS.out
 
-SRCS = IDS.c queue.c readpacket.c detectpacket.c logpacket.c hashtable.c
+SRCS = IDS.c queue.c readpacket.c detectpacket.c logpacket.c hashtable.c 
 OBJS = $(SRCS:.c=.o)
 
 all: preprocess $(TARGET)
