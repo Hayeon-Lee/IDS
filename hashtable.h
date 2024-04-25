@@ -42,6 +42,5 @@ HashTableNode* makeTableNode(unsigned int srcip);
 HashTableNode* findTargetLocation(HashTable *hashtable, int key, unsigned srcip);
 int insertNode(HashTable *hashtable, int key, unsigned int srcip, int isEmpty);
 int hashSourceTp(HashTable *hashtable, unsigned int srcip);
-int hasSrcIp(unsigned int srcip);
 int checkTable(HashTable *hashtable, unsigned int srcip);
 #endif
