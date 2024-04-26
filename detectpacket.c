@@ -73,7 +73,7 @@ void *start_detectthread(void * detectstruct) {
     }
 
     if (*flood_attack_flag == 1 && node.protocol == ICMP && node.type == ECHO_REQUEST) {
-      int isAttack = checkTable(hashtable, node.srcip);    
+      int isAttack = check_table(hashtable, node.srcip);    
       if (isAttack == FAIL) {
         printf("[ERR] HASHTABLE이 정상작동하지 않습니다. FLOOD 감지를 중지합니다. 정책 탐지는 정상적으로 이루어집니다.\n");
         *flood_attack_flag = 0;
