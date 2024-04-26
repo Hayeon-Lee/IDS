@@ -439,7 +439,7 @@ int main() {
   //init hashtable
   if (config.floodflag == 1) {
     parse_flood_conf_file(&flood_config);
-    initHashTable(&hashtable, &flood_config);
+    init_hash_table(&hashtable, &flood_config);
   } 
  
   //make Rule Structure
@@ -488,7 +488,7 @@ int main() {
 
   //make detect thread array items
   for (int i=0; i<config.threadcnt; i++){
-    if (pthread_create(&detect_thread_array[i], NULL, startDetectThread, (void *)(detectstruct_array[i])) != 0){
+    if (pthread_create(&detect_thread_array[i], NULL, start_detectthread, (void *)(detectstruct_array[i])) != 0){
       printf("[DETECT THREAD] 생성 실패. 프로그램을 종료합니다.\n");
       exit(0);
     }
