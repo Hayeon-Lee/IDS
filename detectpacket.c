@@ -21,9 +21,12 @@
 #define FAIL 0
 
 #define ICMP 1
+#define TCP 6
+#define UDP 17
 #define ECHO_REQUEST 8
+#define NOT_SUPPORTED_PROTOCOL -1
 
-void *startDetectThread(void * detectstruct) { 
+void *start_detectthread(void * detectstruct) { 
   PacketQueue *pkt_queue = ((DetectStruct *)detectstruct)->packetqueue;
   Rule rule = ((DetectStruct *)detectstruct)->rulestruct;
   DangerPacketQueue *danger_pkt_queue = ((DetectStruct *)detectstruct)->dangerpacketqueue;
@@ -38,64 +41,65 @@ void *startDetectThread(void * detectstruct) {
     if (*end_flag == 1) break;
 
     Packet *item = dequeuePacket(pkt_queue);
-    if (item) {
-      *thread_dequeue_cnt += 1;
-      PacketNode node;
-      node = makePacketNode(item->packet, item->caplen);
-      free(item->packet);
-      free(item);
 
-      //지원되지 않는 프로토콜
-      if (node.protocol == -1) {
-        DangerPacket * dangernode = makeDangerPacket(node, "not support", "not support");
-        enqueueDangerPacket(danger_pkt_queue, dangernode);
-        continue;
-      }
-
-     
-      if (node.protocol == ICMP) {
-        if (node.dstip == UINT_MAX && node.type == ECHO_REQUEST) {
-          DangerPacket * dangernode = makeDangerPacket(node, "SMURF", "SMURF");
-          enqueueDangerPacket(danger_pkt_queue, dangernode);
-          continue;
-        }
-      }
-
-      if (*flood_attack_flag == 1 && node.protocol == ICMP && node.type == ECHO_REQUEST) {
-        int isAttack = checkTable(hashtable, node.srcip);    
-        if (isAttack == FAIL) {
-          printf("[ERR] HASHTABLE이 정상작동하지 않습니다. FLOOD 감지를 중지합니다. 정책 탐지는 정상적으로 이루어집니다.\n");
-          *flood_attack_flag = 0;
-        }
-
-        if (isAttack == FLOOD) {
-          char flood_msg[50];
-          
-          if (node.protocol == 1) snprintf(flood_msg, 50, "%s FLOOD", "ICMP");
-         
-          DangerPacket *dangernode = makeDangerPacket(node, flood_msg, flood_msg);
-          enqueueDangerPacket(danger_pkt_queue, dangernode);
-          continue;
-        }
-      }
-
-      int rulenum = checkNode(node, rule);
-      if (rulenum != DANGER) { //정책 위반
-         DangerPacket *dangernode = makeDangerPacket(node, (char *)(rule.rules[rulenum].name), (char *)(rule.rules[rulenum].content) ); 
-         enqueueDangerPacket(danger_pkt_queue, dangernode);
-      }
-    } else {
+    if (!item) { 
       count++;
       if (count >= 10) {
         usleep(10);
         count = 0;
       }
+      continue;
+    }
+
+    *thread_dequeue_cnt += 1;
+    PacketNode node;
+    node = parse_packet_node(item->packet, item->caplen);
+    free(item->packet);
+    free(item);
+
+    //지원되지 않는 프로토콜
+    if (node.protocol == NOT_SUPPORTED_PROTOCOL) {
+      DangerPacket * dangernode = make_danger_packet(node, "not support", "not support");
+      enqueueDangerPacket(danger_pkt_queue, dangernode);
+      continue;
+    }
+
+    if (node.protocol == ICMP) {
+      if (node.dstip == UINT_MAX && node.type == ECHO_REQUEST) {
+        DangerPacket * dangernode = make_danger_packet(node, "SMURF", "SMURF");
+        enqueueDangerPacket(danger_pkt_queue, dangernode);
+        continue;
+      }
+    }
+
+    if (*flood_attack_flag == 1 && node.protocol == ICMP && node.type == ECHO_REQUEST) {
+      int isAttack = checkTable(hashtable, node.srcip);    
+      if (isAttack == FAIL) {
+        printf("[ERR] HASHTABLE이 정상작동하지 않습니다. FLOOD 감지를 중지합니다. 정책 탐지는 정상적으로 이루어집니다.\n");
+        *flood_attack_flag = 0;
+      }
+
+      if (isAttack == FLOOD) {
+        char flood_msg[50];
+
+        if (node.protocol == 1) snprintf(flood_msg, 50, "%s FLOOD", "ICMP");
+
+        DangerPacket *dangernode = make_danger_packet(node, flood_msg, flood_msg);
+        enqueueDangerPacket(danger_pkt_queue, dangernode);
+        continue;
+      }
+    }
+
+    int rulenum = match_node_with_rule(node, rule);
+    if (rulenum != DANGER) { //정책 위반
+      DangerPacket *dangernode = make_danger_packet(node, (char *)(rule.rules[rulenum].name), (char *)(rule.rules[rulenum].content) ); 
+      enqueueDangerPacket(danger_pkt_queue, dangernode);
     }
   }
   return NULL;
 }
 
-void initPacketNode(PacketNode *node){
+void init_packet_node(PacketNode *node){
   node->length = -1;
   
   node->dstmac[0] = '\0';
@@ -116,50 +120,44 @@ void initPacketNode(PacketNode *node){
   node->type = -1;
 }
 
-PacketNode makePacketNode (u_char *packet, int caplen) { 
+PacketNode parse_packet_node (u_char *packet, int caplen) { 
   PacketNode node;
-  initPacketNode(&node);
+  init_packet_node(&node);
   
-  //icmp 탐지
-  if (caplen >= 28 && isICMP(packet)) {
+  if (caplen >= 28 && is_icmp(packet)) {
     node.protocol = 1;
-    readICMP(packet, &node);
+    decode_icmp_header(packet, &node);
     return node;
   }
 
-  //이더넷 헤더일 경우
   if (caplen >= 14) {
-    //node 길이 초기화
     node.length = caplen;
-    unsigned short type = readEthernet(packet, &node);
+    unsigned short type = decode_ethernet_header(packet, &node);
 
-    //IPV4
     if (type == ETHERTYPE_IP && caplen >= 28) {
-      int protocol = readIPV4(packet, &node);
+      int protocol = decode_ipv4_header(packet, &node);
       
-      //TCP
-      if (protocol == 6 && caplen >= 54) {
-        node.protocol = 6;
-        readTCP(packet, &node);
+      if (protocol == TCP && caplen >= 54) {
+        node.protocol = TCP;
+        decode_tcp_header(packet, &node);
       }
-      //UDP
-      if (protocol == 17 && caplen >= 42) {
-        node.protocol = 17;
-        readUDP(packet, &node);
+      if (protocol == UDP && caplen >= 42) {
+        node.protocol = UDP;
+        decode_udp_header(packet, &node);
       }
       //ICMP (ethernet 헤더가 있는 특수한 케이스 icmp)
       if (protocol == 1 && caplen >= 42) {
         node.protocol = 1;
         node.srcport = 0;
         node.dstport = 0;
-        read_ether_icmp(packet, &node);
+        decode_ether_icmp_header(packet, &node);
       }
     }
   }
   return node;
 }
 
-unsigned short readEthernet(u_char *packet, PacketNode *node ) {
+unsigned short decode_ethernet_header(u_char *packet, PacketNode *node ) {
 
   struct ether_header *eth_header;
   eth_header = (struct ether_header*)packet;
@@ -172,7 +170,7 @@ unsigned short readEthernet(u_char *packet, PacketNode *node ) {
   return ntohs(eth_header->ether_type);
 }
 
-int readIPV4(u_char *packet, PacketNode *node) {
+int decode_ipv4_header(u_char *packet, PacketNode *node) {
   struct ip *ip_header = (struct ip*)(packet+sizeof(struct ether_header));
   node->srcip = htonl(ip_header->ip_src.s_addr);
   node->dstip = htonl(ip_header->ip_dst.s_addr);
@@ -180,7 +178,7 @@ int readIPV4(u_char *packet, PacketNode *node) {
   return ip_header->ip_p;
 }
 
-int readUDP(u_char *packet, PacketNode *node) {
+int decode_udp_header(u_char *packet, PacketNode *node) {
   int ether_size = sizeof(struct ether_header);
   int add_size = ether_size + 20;
 
@@ -198,7 +196,7 @@ int readUDP(u_char *packet, PacketNode *node) {
   return 0;
 }
 
-int readTCP(u_char *packet, PacketNode *node) {
+int decode_tcp_header(u_char *packet, PacketNode *node) {
   int ether_size = sizeof(struct ether_header);
   int add_size = ether_size + 20;
 
@@ -220,12 +218,12 @@ int readTCP(u_char *packet, PacketNode *node) {
   return 0;
 }
 
-int isICMP(u_char *packet){
+int is_icmp(u_char *packet){
   struct ip *ip_header = (struct ip*)packet;
   return (ip_header->ip_p==1) ? 1 : 0; 
 }
 
-int readICMP(u_char *packet, PacketNode *node) {
+int decode_icmp_header (u_char *packet, PacketNode *node) {
   struct ip *ip_header = (struct ip*)packet;
   node->srcip = htonl(ip_header->ip_src.s_addr);
   node->dstip = htonl(ip_header->ip_dst.s_addr);
@@ -238,7 +236,7 @@ int readICMP(u_char *packet, PacketNode *node) {
   return 0;
 }
 
-int read_ether_icmp(u_char *packet, PacketNode *node){
+int decode_ether_icmp_header(u_char *packet, PacketNode *node){
   int ether_size = sizeof(struct ether_header);
   int add_size = ether_size + 20;
 
@@ -249,7 +247,7 @@ int read_ether_icmp(u_char *packet, PacketNode *node){
   return 0;
 }
 
-int checkNode(PacketNode node, Rule rule){
+int match_node_with_rule(PacketNode node, Rule rule){
 
   if (node.flag_payload == 0) {
     return -1;
@@ -264,7 +262,7 @@ int checkNode(PacketNode node, Rule rule){
   for(i=0; i<rule.cnt; i++) {
     
      //패턴 검사
-    if (match_pattern(node.payload, rule.rules[i].pattern, node.size_payload)==1) {
+    if (match_node_with_rule_pattern(node.payload, rule.rules[i].pattern, node.size_payload)==1) {
       if (flag == 0) {
         flag = 1;
         result = 1;
@@ -326,7 +324,7 @@ int checkNode(PacketNode node, Rule rule){
   return -1;
 }
 
-int match_pattern(char *payload, char *pattern, int size_payload){
+int match_node_with_rule_pattern(char *payload, char *pattern, int size_payload){
   if (strlen(pattern)>size_payload) {
     return -1;
   }
@@ -352,7 +350,7 @@ int match_pattern(char *payload, char *pattern, int size_payload){
   return -1;
 }
 
-DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char * rulecontent) {
+DangerPacket *make_danger_packet(PacketNode node, char * rulename, char * rulecontent) {
   DangerPacket * dangernode = (DangerPacket *)malloc(sizeof(DangerPacket));
   if (dangernode == NULL) {
     printf("위험한 패킷이 존재하지만 저장에 실패하였습니다. 프로그램을 종료합니다.\n");
