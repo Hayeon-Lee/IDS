@@ -336,7 +336,7 @@ void parse_flood_conf_file (FloodConfig *flood_config) {
   system("clear");
 }
 
-void * start_printthread(void * printstruct) {
+void *start_printthread(void * printstruct) {
   PrintStruct *print_struct = (PrintStruct *)printstruct;
   PacketQueue **packetqueue_array = print_struct -> packetqueue_array;
   DetectStruct **detectstruct_array = print_struct -> detectstruct_array;
@@ -395,8 +395,6 @@ void * start_printthread(void * printstruct) {
 }
 
 int main() { 
-
-  //기본 설정 파일을 정의한다
   Config config;
   config.queuesize = DEFAULT_QUEUESIZE;
   config.threadcnt = DEFAULT_THREADCNT;
@@ -405,7 +403,6 @@ int main() {
   config.propcnt = DEFAULT_PROP_CNT;
   parse_config_file(&config);
 
-  //flood 정책 설정 파일을 정의한다
   FloodConfig flood_config;
   flood_config.tablesize = DEFAULT_TABLESIZE;
   flood_config.timelimit = DEFAULT_TIMELIMIT;
@@ -413,33 +410,13 @@ int main() {
   
   HashTable hashtable;
 
-  if (config.floodflag == 1) {
-    parse_flood_conf_file(&flood_config);
-    initHashTable(&hashtable, &flood_config);
-  }
-
-  
-  //Initialize Rule Structure
   Rule IDSRule;
   IDSRule.rules = (RuleDetail *)malloc(sizeof(RuleDetail)*config.rulecnt);
   IDSRule.cnt = 0;
-  
-  //정책 파일을 읽고 저장한다.
-  makeRule(&IDSRule, config.rulecnt);
  
-  // PacketQueue의 주소를 저장하는 일차원 배열
   PacketQueue **packetqueue_array = (PacketQueue **)malloc(sizeof(PacketQueue*)*config.threadcnt);
-  for(int i=0; i<config.threadcnt; i++) {
-    PacketQueue *packetqueue = (PacketQueue *)malloc(sizeof(PacketQueue));
-    packetqueue_array[i] = packetqueue;
-    initPacketQueue(packetqueue_array[i], config.queuesize);
-  }
-
-  //Danger Packet Queue 선언 및 초기화
   DangerPacketQueue dangerpacketqueue;
-  initDangerPacketQueue(&dangerpacketqueue, config.queuesize);
 
-  //Read Thread에게 넘겨줄 구조체 선언 및 초기화
   ReadStruct readstruct;
   readstruct.packetqueue = packetqueue_array;
   readstruct.dangerpacketqueue = &dangerpacketqueue;
@@ -447,6 +424,38 @@ int main() {
   readstruct.threadcnt = config.threadcnt;
 
   DetectStruct **detectstruct_array = (DetectStruct **)malloc(sizeof(DetectStruct*)*config.threadcnt);
+  
+  LogStruct logstruct;
+  logstruct.dangerpacketqueue = &dangerpacketqueue;
+  logstruct.end_flag = &end_flag;
+  
+  PrintStruct printstruct;
+  printstruct.packetqueue_array = packetqueue_array;
+  printstruct.detectstruct_array = detectstruct_array;
+  printstruct.dangerpacketqueue = &dangerpacketqueue;
+  printstruct.end_flag = &end_flag;
+  printstruct.threadcnt = config.threadcnt;
+  
+  //init hashtable
+  if (config.floodflag == 1) {
+    parse_flood_conf_file(&flood_config);
+    initHashTable(&hashtable, &flood_config);
+  } 
+ 
+  //make Rule Structure
+  makeRule(&IDSRule, config.rulecnt);
+
+  //packet queue 
+  for(int i=0; i<config.threadcnt; i++) {
+    PacketQueue *packetqueue = (PacketQueue *)malloc(sizeof(PacketQueue));
+    packetqueue_array[i] = packetqueue;
+    initPacketQueue(packetqueue_array[i], config.queuesize);
+  }
+
+  //danger pacekt queue
+  initDangerPacketQueue(&dangerpacketqueue, config.queuesize);
+
+  //detect struct array
   for(int i=0; i<config.threadcnt; i++){
     DetectStruct *detectstruct = (DetectStruct *)malloc(sizeof(DetectStruct));
     detectstruct->rulestruct = IDSRule;
@@ -459,23 +468,25 @@ int main() {
     detectstruct_array[i] = detectstruct;
   }
 
-  LogStruct logstruct;
-  logstruct.dangerpacketqueue = &dangerpacketqueue;
-  logstruct.end_flag = &end_flag;
-
   pthread_t ReadThread;
+  pthread_t *detect_thread_array = (pthread_t *)malloc(sizeof(pthread_t)*config.threadcnt);
+  pthread_t LogThread;
+  pthread_t PrintThread;
+
+  //make read thread
   int read_thr_id = pthread_create(&ReadThread, NULL, start_readthread,(void *)&readstruct);
   if (read_thr_id != 0) {
     printf("[READ THREAD] 생성 실패. 프로그램을 종료합니다.\n");
     exit(0);
   }
 
-  pthread_t *detect_thread_array = (pthread_t *)malloc(sizeof(pthread_t)*config.threadcnt);
+  //make detect thread array
   if (detect_thread_array == NULL) {
     printf("[DETECT THREAD] 스레드 공간 생성 실패하였습니다. 프로그램을 종료합니다.\n");
     exit(0);
   }
 
+  //make detect thread array items
   for (int i=0; i<config.threadcnt; i++){
     if (pthread_create(&detect_thread_array[i], NULL, startDetectThread, (void *)(detectstruct_array[i])) != 0){
       printf("[DETECT THREAD] 생성 실패. 프로그램을 종료합니다.\n");
@@ -483,21 +494,14 @@ int main() {
     }
   }
 
-  pthread_t LogThread;
+  //make log thread
   int log_thr_id = pthread_create(&LogThread, NULL, start_logthread, (void *)&logstruct);
   if (log_thr_id != 0) {
     printf("[LOG THREAD] 생성 실패. 프로그램을 종료합니다.\n");
     exit(0);
   }
 
-  PrintStruct printstruct;
-  printstruct.packetqueue_array = packetqueue_array;
-  printstruct.detectstruct_array = detectstruct_array;
-  printstruct.dangerpacketqueue = &dangerpacketqueue;
-  printstruct.end_flag = &end_flag;
-  printstruct.threadcnt = config.threadcnt;
-
-  pthread_t PrintThread;
+  //make print thread
   int print_thr_id = pthread_create(&PrintThread, NULL, start_printthread, (void *)&printstruct);
   if (print_thr_id != 0){
     printf("[PRINT THREAD] 생성 실패. 실시간 통계는 출력되지 않지만 IDS는 정상실행됩니다.\n");
