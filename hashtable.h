@@ -36,11 +36,11 @@ typedef struct {
   pthread_mutex_t mutex;
 } HashTable;
 
-void initHashTable(HashTable *hashtable, FloodConfig *flood_config);
-int isEmptyHashTable(HashTable *hashtable, int key);
-HashTableNode* makeTableNode(unsigned int srcip);
-HashTableNode* findTargetLocation(HashTable *hashtable, int key, unsigned srcip);
-int insertNode(HashTable *hashtable, int key, unsigned int srcip, int isEmpty);
-int hashSourceTp(HashTable *hashtable, unsigned int srcip);
-int checkTable(HashTable *hashtable, unsigned int srcip);
+void init_hash_table(HashTable *hashtable, FloodConfig *flood_config);
+int is_empty_hash_table(HashTable *hashtable, int key);
+HashTableNode* make_table_node(unsigned int srcip);
+HashTableNode* find_target_location(HashTable *hashtable, int key, unsigned srcip);
+int insert_table_node(HashTable *hashtable, int key, unsigned int srcip, int isEmpty);
+int hash_source_ip(HashTable *hashtable, unsigned int srcip);
+int check_table(HashTable *hashtable, unsigned int srcip);
 #endif
