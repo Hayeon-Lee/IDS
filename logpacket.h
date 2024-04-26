@@ -11,13 +11,11 @@ typedef struct {
 } LogQueue;
 
 void *start_logthread(void *logstruct);
-void initLogQueue(LogQueue *queue, int queuesize);
-void enqueueLog(LogQueue *queue, DangerPacket *value);
-DangerPacket * dequeueLog(LogQueue *queue);
+void init_log_queue(LogQueue *queue, int queuesize);
+void enqueue_log(LogQueue *queue, DangerPacket *value);
+DangerPacket * dequeue_log(LogQueue *queue);
 
-void makeLogFile(LogQueue *queue, sqlite3 *db);
-void writeLog(LogQueue *queue,sqlite3 *db);
-char * returnLogString(DangerPacket *packet);
+void write_log_in_db(LogQueue *queue,sqlite3 *db);
 int create_table_in_sqlite3(sqlite3 *db);
 int insert_data_in_db(sqlite3 *db, DangerPacket *packet);
 #endif
