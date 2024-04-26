@@ -55,7 +55,7 @@ uint32_t hash_func4 (const char *key, int len) { //ub8 이 unsigned  8비트 cha
   return (n);
 }
 
-void initHashTable(HashTable *hashtable, FloodConfig *flood_config ){
+void init_hash_table(HashTable *hashtable, FloodConfig *flood_config ){
   hashtable->node = (HashTableHead*)malloc(sizeof(HashTableHead)*flood_config->tablesize);
   for (int i=0; i<flood_config->tablesize; i++) {
     hashtable->node[i].nodecnt = 0;
@@ -71,11 +71,11 @@ void initHashTable(HashTable *hashtable, FloodConfig *flood_config ){
   return;
 }
 
-int isEmptyHashTable(HashTable *hashtable, int key) { 
+int is_empty_hash_table(HashTable *hashtable, int key) { 
   return (hashtable->node[key].nodecnt) ? NOT_EMPTY : EMPTY;
 }
 
-HashTableNode* makeTableNode(unsigned int srcip) {
+HashTableNode* make_table_node(unsigned int srcip) {
   
   time_t detect_time;
   time(&detect_time);
@@ -94,7 +94,7 @@ HashTableNode* makeTableNode(unsigned int srcip) {
   return node;
 }
 
-HashTableNode* findTargetLocation(HashTable *hashtable, int key, unsigned srcip){
+HashTableNode* find_target_location(HashTable *hashtable, int key, unsigned srcip){
   HashTableNode *node = hashtable->node[key].next;
 
   while(node != NULL) {
@@ -106,11 +106,11 @@ HashTableNode* findTargetLocation(HashTable *hashtable, int key, unsigned srcip)
   return node;
 }
 
-int insertNode(HashTable *hashtable, int key, unsigned int srcip, int isEmpty){
+int insert_table_node(HashTable *hashtable, int key, unsigned int srcip, int isEmpty){
   
   if (isEmpty){
     hashtable->node[key].nodecnt = 1; //첫 번째
-    hashtable->node[key].next = makeTableNode(srcip);
+    hashtable->node[key].next = make_table_node(srcip);
     hashtable->node[key].next->prev = NULL; //앞 노드는 HEAD이기 때문에 양방향 연결 x 
     return SUCCESS; 
   }
@@ -119,12 +119,12 @@ int insertNode(HashTable *hashtable, int key, unsigned int srcip, int isEmpty){
   struct timespec detect_ts, current_ts;
   clock_gettime(CLOCK_REALTIME, &current_ts);
 
-  HashTableNode *target_node = findTargetLocation(hashtable, key, srcip);
+  HashTableNode *target_node = find_target_location(hashtable, key, srcip);
   if (!target_node) return FAIL;
 
   if (target_node->srcip != srcip) { //이 아이피는 리스트에 존재하지 않는다 == 끝에 넣어준다
     hashtable->node[key].nodecnt += 1;
-    target_node->next = makeTableNode(srcip);
+    target_node->next = make_table_node(srcip);
     target_node->next->prev = target_node; //앞 뒤 연결해줌
     return SUCCESS;
   }
@@ -170,19 +170,18 @@ int insertNode(HashTable *hashtable, int key, unsigned int srcip, int isEmpty){
   return FAIL; 
 }
 
-uint32_t hashSrcIp (unsigned int srcip) {
+uint32_t hash_src_ip (unsigned int srcip) {
   return hash_func4((const char *)&srcip, sizeof(srcip));
 }
 
-int checkTable(HashTable *hashtable, unsigned int srcip) {
+int check_table(HashTable *hashtable, unsigned int srcip) {
   pthread_mutex_lock(&(hashtable->mutex));
   
-  uint32_t key = hashSrcIp(srcip) % (hashtable->tablesize);
-  //fprintf(stderr, "key : [%u]\n", key);
-  int isEmpty = isEmptyHashTable(hashtable, key);
+  uint32_t key = hash_src_ip(srcip) % (hashtable->tablesize);
+  int isEmpty = is_empty_hash_table(hashtable, key);
 
   int insertResult = 0;
-  insertResult = insertNode(hashtable, key, srcip, isEmpty);  
+  insertResult = insert_table_node(hashtable, key, srcip, isEmpty);  
  
   pthread_mutex_unlock(&(hashtable->mutex));
   return insertResult;
