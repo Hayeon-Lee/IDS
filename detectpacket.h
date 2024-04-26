@@ -28,18 +28,18 @@ typedef struct {
   int type; //icmp type
 } PacketNode;
 
-void initPacketNode(PacketNode *node);
-void *startDetectThread(void * detectstruct);
-PacketNode makePacketNode(u_char *packet, int caplen);
-unsigned short readEthernet(u_char *packet, PacketNode *node);
-int readIPV4(u_char *packet, PacketNode *node);
-int readUDP (u_char *packet, PacketNode *node);
-int readTCP(u_char *packet, PacketNode *node);
-int readICMP(u_char *packet, PacketNode *node);
-int isICMP(u_char *packet);
-int read_ether_icmp(u_char *packet, PacketNode *node);
+void *start_detectthread(void * detectstruct);
+void init_packet_node(PacketNode *node);
+PacketNode parse_packet_node(u_char *packet, int caplen);
+unsigned short decode_ethernet_header(u_char *packet, PacketNode *node);
+int decode_ipv4_header(u_char *packet, PacketNode *node);
+int decode_udp_header(u_char *packet, PacketNode *node);
+int decode_tcp_header(u_char *packet, PacketNode *node);
+int decode_icmp_header(u_char *packet, PacketNode *node);
+int is_icmp(u_char *packet);
+int decode_ether_icmp_header(u_char *packet, PacketNode *node);
 
-int checkNode(PacketNode node, Rule rule);
-int match_pattern(char *payload, char *pattern, int size_payload);
-DangerPacket * makeDangerPacket(PacketNode node, char * rulename, char *rulecontent); 
+int match_node_with_rule(PacketNode node, Rule rule);
+int match_node_with_rule_pattern(char *payload, char *pattern, int size_payload);
+DangerPacket *make_danger_packet(PacketNode node, char * rulename, char *rulecontent); 
 #endif
