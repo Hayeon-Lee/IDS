@@ -13,7 +13,7 @@ void *start_logthread(void *logstruct) {
   
   int queuesize = danger_pkt_queue->MAX_QUEUE_SIZE;
   LogQueue logqueue;
-  initLogQueue(&logqueue, queuesize);
+  init_log_queue(&logqueue, queuesize);
   int *end_flag = ((LogStruct*)logstruct)->end_flag;
 
   time_t start_time;
@@ -52,7 +52,7 @@ void *start_logthread(void *logstruct) {
   while(1) {
   
     if (*end_flag == 1) {
-      writeLog(&logqueue, db);
+      write_log_in_db(&logqueue, db);
 
       if (db!=NULL) {
         sqlite3_close(db);
@@ -66,7 +66,7 @@ void *start_logthread(void *logstruct) {
 
     DangerPacket * dangerpacket = dequeueDangerPacket(danger_pkt_queue);
     if (dangerpacket != NULL) {
-      enqueueLog(&logqueue, dangerpacket);
+      enqueue_log(&logqueue, dangerpacket);
     } else {
       usleep_count ++;
       if(usleep_count == 10) {
@@ -77,18 +77,18 @@ void *start_logthread(void *logstruct) {
 
     if ((logqueue.count > (logqueue.MAX_QUEUE_SIZE*0.8))){
       start_time = current_time;
-      writeLog(&logqueue, db);
+      write_log_in_db(&logqueue, db);
     }
     else if (logqueue.count > 0 && elapsed_time >= 10) {
       start_time = current_time;
-      writeLog(&logqueue, db);
+      write_log_in_db(&logqueue, db);
     }
   }
 
   return NULL;
 }
 
-void initLogQueue(LogQueue *queue, int queuesize) {
+void init_log_queue(LogQueue *queue, int queuesize) {
   queue->front = 0;
   queue->rear = -1;
   queue->count = 0;
@@ -97,7 +97,7 @@ void initLogQueue(LogQueue *queue, int queuesize) {
   queue->packet = (DangerPacket**)malloc(sizeof(DangerPacket*)*queuesize);
 }
 
-void enqueueLog(LogQueue *queue, DangerPacket *value) {
+void enqueue_log(LogQueue *queue, DangerPacket *value) {
   if (queue->count >= queue->MAX_QUEUE_SIZE) {
     return;
   }
@@ -106,7 +106,7 @@ void enqueueLog(LogQueue *queue, DangerPacket *value) {
   queue->count += 1;
 }
 
-DangerPacket * dequeueLog(LogQueue *queue) {
+DangerPacket * dequeue_log(LogQueue *queue) {
   if (queue->count <= 0) {
     return NULL;
   }
@@ -118,9 +118,9 @@ DangerPacket * dequeueLog(LogQueue *queue) {
   return item;
 }
 
-void writeLog(LogQueue *queue, sqlite3 *db){
+void write_log_in_db(LogQueue *queue, sqlite3 *db){
   while (queue->count) {
-    DangerPacket * packet = dequeueLog(queue);
+    DangerPacket * packet = dequeue_log(queue);
     if (packet != NULL) {
       int result = insert_data_in_db(db, packet);
       free(packet);
