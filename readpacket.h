@@ -9,7 +9,7 @@
 
 void *start_readthread(void *readstruct);
 int check_filename_extension(const char *filename);
-void read_packet_files(DIR *directory, char * directory_path, PacketQueue **packetqueue_array, DangerPacketQueue *dangerpacketqueue, int threadcnt, struct dirent *entry);
+void read_packet_files(DIR *directory, char * directory_path, PacketQueue **packetqueue_array, DangerPacketQueue *dangerpacketqueue, int threadcnt);
 DangerPacket *make_danger_packet_node();
 Packet *make_packet_node(struct pcap_pkthdr *header, const u_char *packet);
 #endif
