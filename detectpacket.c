@@ -15,7 +15,7 @@
 #include "detectpacket.h"
 #include "hashtable.h"
 
-#define DANGER -1
+#define SAFE -1
 #define FLOOD -1
 #define SUCCESS 1
 #define FAIL 0
@@ -91,7 +91,7 @@ void *start_detectthread(void * detectstruct) {
     }
 
     int rulenum = match_node_with_rule(node, rule);
-    if (rulenum != DANGER) { //정책 위반
+    if (rulenum != SAFE) { //정책 위반
       DangerPacket *dangernode = make_danger_packet(node, (char *)(rule.rules[rulenum].name), (char *)(rule.rules[rulenum].content) ); 
       enqueueDangerPacket(danger_pkt_queue, dangernode);
     }
@@ -319,8 +319,6 @@ int match_node_with_rule(PacketNode node, Rule rule){
       result = 0;
     }
   } 
-      
-   
   return -1;
 }
 
