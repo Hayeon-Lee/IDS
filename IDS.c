@@ -151,7 +151,7 @@ int check_rule_valid(char *content, Rule *IDSRule){
   return BAD; //처리 불가능한 패킷
 }
 
-void makeRule(Rule* IDSRule, int rulecnt) {
+void parse_rule_file(Rule* IDSRule, int rulecnt) {
   FILE * rulefile = fopen("./conf/rule.txt", "r");
 
   if (rulefile == NULL) {
@@ -178,19 +178,14 @@ void makeRule(Rule* IDSRule, int rulecnt) {
         }
       }
 
-      if(name == NULL){
-        printf("pipeline이 없습니다. 무시합니다.\n");
-        continue;
-      }
-      else {
-        // TODO 이름 고민
+      if(name != NULL){
         int result = check_rule_valid(content, IDSRule);
- 
+
         if (result == OK && IDSRule->rules[IDSRule->cnt].pattern[0] != '\0'){
           strcpy((char *)(IDSRule->rules[IDSRule->cnt].name),(const char *)name);
           IDSRule->cnt += 1;
         }
-      }
+      } 
     }
   }
   fclose(rulefile);
@@ -357,6 +352,7 @@ void *start_printthread(void * printstruct) {
 
     if (*end_flag == 1) {
       free(backup_packetqueue_thread_enqueue);
+      free(backup_packetqueue_thread_dequeue);
       break;
     }
 
@@ -443,7 +439,7 @@ int main() {
   } 
  
   //make Rule Structure
-  makeRule(&IDSRule, config.rulecnt);
+  parse_rule_file(&IDSRule, config.rulecnt);
 
   //packet queue 
   for(int i=0; i<config.threadcnt; i++) {
