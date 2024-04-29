@@ -36,14 +36,12 @@ void *start_readthread(void * readstruct) {
   }
 
   while(1){
-    if (*end_flag == 1) {
-      closedir(directory);
-      break;
-    }
+    if (*end_flag == 1) { break; }
+    
+    DIR *directory = opendir(path);
 
-    struct dirent *entry;
-    if ((entry = readdir(directory)) == NULL) usleep(1);
-    else read_packet_files(directory, path, packetqueue_array, dangerpacketqueue, threadcnt, entry);
+    read_packet_files(directory, path, packetqueue_array, dangerpacketqueue, threadcnt);
+    closedir(directory);
   }
   return NULL;
 }
@@ -64,49 +62,51 @@ void read_packet_files(DIR * directory,
     char * directory_path,
     PacketQueue* *packetqueue_array,
     DangerPacketQueue *dangerpacketqueue,
-    int threadcnt,
-    struct dirent *entry) {
-  
+    int threadcnt) {
+ 
+  struct dirent *entry;
   int queue_index = 0;
 
-  if (strcmp(entry -> d_name, ".") == 0) return;
-  if (strcmp(entry -> d_name, "..") == 0) return;
+  while((entry = readdir(directory)) != NULL) {
+    if (strcmp(entry -> d_name, ".") == 0) continue;
+    if (strcmp(entry -> d_name, "..") == 0) continue;
 
-  if (check_filename_extension(entry->d_name)) {
-    char before_process_path[MAX_FILENAME_LEN];
-    char after_process_path[MAX_FILENAME_LEN];
+    if (check_filename_extension(entry->d_name)) {
+      char before_process_path[MAX_FILENAME_LEN];
+      char after_process_path[MAX_FILENAME_LEN];
 
-    snprintf(before_process_path, MAX_FILENAME_LEN, "%s/%s", directory_path, entry->d_name);
-    snprintf(after_process_path, MAX_FILENAME_LEN, "processed_packets/%s", entry->d_name);
+      snprintf(before_process_path, MAX_FILENAME_LEN, "%s/%s", directory_path, entry->d_name);
+      snprintf(after_process_path, MAX_FILENAME_LEN, "processed_packets/%s", entry->d_name);
 
-    //read .pcap or .cap file
-    char errbuff[PCAP_ERRBUF_SIZE];
-    pcap_t * handle = pcap_open_offline(before_process_path, errbuff);
+      //read .pcap or .cap file
+      char errbuff[PCAP_ERRBUF_SIZE];
+      pcap_t * handle = pcap_open_offline(before_process_path, errbuff);
 
-    if (handle) {
-      int result = 0;
-      struct pcap_pkthdr * header;
-      const u_char * packet;
+      if (handle) {
+        int result = 0;
+        struct pcap_pkthdr * header;
+        const u_char * packet;
 
-      //read by line in .pcap or .cap file 
-      while ((result = pcap_next_ex(handle, & header, &packet)) == 1) {
-        if ((header -> caplen) > 0) {
-          Packet *packet_node = make_packet_node(header, packet);
+        //read by line in .pcap or .cap file 
+        while ((result = pcap_next_ex(handle, & header, &packet)) == 1) {
+          if ((header -> caplen) > 0) {
+            Packet *packet_node = make_packet_node(header, packet);
 
-          int enqueue_result = enqueuePacket((PacketQueue * ) packetqueue_array[queue_index], packet_node, header -> caplen);
-          queue_index = (queue_index + 1)%threadcnt;
+            int enqueue_result = enqueuePacket((PacketQueue * ) packetqueue_array[queue_index], packet_node, header -> caplen);
+            queue_index = (queue_index + 1)%threadcnt;
 
-          if (enqueue_result==QUEUE_OVERFLOW){
-            DangerPacket *dangernode = make_danger_packet_node();
-            enqueueDangerPacket(dangerpacketqueue, dangernode);
-            free(packet_node);
+            if (enqueue_result==QUEUE_OVERFLOW){
+              DangerPacket *dangernode = make_danger_packet_node();
+              enqueueDangerPacket(dangerpacketqueue, dangernode);
+              free(packet_node);
+            }
           }
         }
+        pcap_close(handle);
+        rename(before_process_path, after_process_path);
       }
-      pcap_close(handle);
-      rename(before_process_path, after_process_path);
     }
-  } 
+  }
 }
 
 
