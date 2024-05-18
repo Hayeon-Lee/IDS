@@ -58,12 +58,35 @@
 3. 모든 패턴은 | (파이프) 특수 기호를 가져야하고, 파이프 기호는 정책의 이름과 내용을 구분짓습니다.
 4. 정책의 내용 내부의 각 특징은 ; (세미콜론) 으로 구분되어야 합니다.
 
+<br>
+
 ### 기능 설명
 
 #### Main
+1. 사용자 정의 파일을 읽어와 파싱하고 정책 구조체와 해시테이블 구조체를 정보에 맞게 구축합니다.
+2. Packet Queue와 Danger Packet Queue를 생성하고 메모리를 할당합니다.
+3. Read Packet Thread, Detect Packet Thread, Log Packet Thread, Print Thread 를 생성하고 실행시킵니다. 메인은 각 스레드에게 스레드 내부에서 실행될 때 필요한 변수들을 구조체 형태의 매개변수로 전달합니다.
+4. ctrl + c를 입력하면 프로그램이 종료됩니다. main은 pthread_join()으로 자식 스레드 종료를 기다리고 있고, 자식 스레드는 end_flag 값을 지속적으로 읽고 있습니다. ctrl + c를 입력하면 end_flag 가 1로 바뀌면서 모든 자식스레드가 종료되고, 모든 자식 스레드가 종료되면 main이 종료됩니다. 
 
 #### Read Packet 
+1. `check_filename_extension()`: pcap 혹은 cap 파일이 저장된 폴더 내부에서 지속적으로 파일을 읽어옵니다. 파일의 확장자가 .pcap 혹은 .cap일 경우에 `read_packet_files()` 로 전달합니다.
+2. `read_packet_files()`: .pcap 파일 혹은 .cap 파일의 패킷을 읽어 Packet 구조체로 제작합니다. 이후 Packet Queue에 enqueue를 시도합니다. Packet Queue는 Detect Thread 개수만큼 존재하기 때문에, 반복문을 이용하여 각 큐에 순서대로 패킷을 enqueue 합니다. 
+3. `make_packet_node()`: 패킷을 Packet 구조체로 변환하는 기능을 수행합니다. Packet 구조체의 멤버 변수는 패킷의 길이와 패킷의 내용(raw 한 상태)입니다.
+4. `make_danger_packet_node()`: 만약 Packet Queue에 enqueue를 시도했는데 Packet Queue가 꽉 차 있을 경우, DangerPacket 구조체로 변환하여 Danger Packet Queue로 enqueue 합니다.
+5. 이미 읽은 .pcap 파일과 .cap 파일은 다 처리한 패킷 폴더로 이동시킵니다.
 
 #### Detect Packet
+1. `init_packet_node()`: 
+2. `parse_packet_node()`:
+3. `decode_ethernet_header()`:
+4. `decode_ipv4_header()`:
+5. `decode_udp_header()`:
+6. `decode_tcp_header()`:
+7. `decode_icmp_header()`:
+8. `is_icmp()`:
+9. `decode_ether_icmp_header()`:
+10. `match_node_with_rule()`:
+11. `match_node_with_rule_pattern()`:
+12. `make_danger_packet()`:
 
 #### Log Packet
