@@ -76,17 +76,37 @@
 5. 이미 읽은 .pcap 파일과 .cap 파일은 다 처리한 패킷 폴더로 이동시킵니다.
 
 #### Detect Packet
-1. `init_packet_node()`: 
-2. `parse_packet_node()`:
-3. `decode_ethernet_header()`:
-4. `decode_ipv4_header()`:
-5. `decode_udp_header()`:
-6. `decode_tcp_header()`:
-7. `decode_icmp_header()`:
-8. `is_icmp()`:
-9. `decode_ether_icmp_header()`:
-10. `match_node_with_rule()`:
-11. `match_node_with_rule_pattern()`:
-12. `make_danger_packet()`:
+1. `init_packet_node()`: PacketNode 구조체를 만든 뒤 패킷의 정보로 채우기 전 기본값으로 초기화해주는 함수이다.
+2. `parse_packet_node()`: packet 의 데이터를 읽은 뒤 계층 별 헤더를 읽으면서 PacketNode 구조체 내의 정보를 채워준다. 
+3. `decode_ethernet_header()`: 이더넷 헤더를 디코딩하여 MAC 주소를 뽑아낸 뒤 PacketNode 구조체의 MAC 주소를 저장한다.
+4. `decode_ipv4_header()`: IP 헤더 (4버전)를 디코딩하여 IP 주소를 뽑아낸 뒤 PacketNode 구조체의 IP 주소에 저장한다.
+5. `decode_udp_header()`: UDP 헤더를 디코딩하여 포트 번호를 뽑아낸 뒤 PacketNode 구조체의 Port 번호에 저장한다.
+6. `decode_tcp_header()`: TCP 헤더를 디코딩하여 포트 번호를 뽑아낸 뒤 PacketNode 구조체의 Port 번호에 저장한다.
+7. `decode_icmp_header()`: 이더넷 헤더를 포함하지 않는 ICMP 프로토콜 헤더를 가진 패킷을 처리하는 함수이다. 
+8. `is_icmp()`: IP smurf 와 flood를 효율적으로 감지하기 위해 icmp 프로토콜을 가질 경우 1을, 아닐 경우 0을 반환한다.
+9. `decode_ether_icmp_header()`: 이더넷 헤더를 포함하는 ICMP 프로토콜 헤더를 가진 패킷을 처리하는 함수이다.
+10. `match_node_with_rule()`: 정책의 패턴 블럭이 데이터에 포함되어 있는지 확인하는 함수이다. 
+11. `match_node_with_rule_pattern()`: 패턴 블럭을 제외한 ip 주소나 mac 주소, port 주소 정책과 패킷을 비교하는 함수이다.
+12. `make_danger_packet()`: 정책에 탐지되는 패킷일 경우 Danger Packet 구조체로 변환한다. 
 
 #### Log Packet
+1. `init_log_queue()`: Log Packet Queue를 초기화해주는 함수이다. 
+2. `enqueue_log()`: Log Packet Queue에 Danger Packet을 Enqueue 하는 함수이다.
+3. `dequeue_log()`: Log Packet Queue에 Danger Packet을 Dequeue 하는 함수이다. Dequeue를 하는 조건은 Log Queue가 80% 이상 차거나, 10초가 지났을 경우이다.
+4. `write_log_in_db()`: sqlite3에 로그를 작성하는 함수이다. insert_data_in_db() 함수를 호출하여 작성한다.
+5. `create_table_in_sqlite3()`: sqlite3 에 로그를 저장하기 전 테이블을 제작하는 함수이다.
+6. `insert_data_in_db()`: sqlite3에 로그를 작성하기 위해 로그의 상세 내용을 쿼리로 작성한다.
+
+<br>
+
+### 구현한 자료구조
+
+#### 원형 큐
+1. 구조체는 멤버변수로 front, rear, count, MAX_QUEUE_SIZE 를 갖는다.
+2. 구조체는 멤버변수로 Packet Queue일 경우 Packet 구조체를 저장하는 배열 포인터를, Danger Packet Queue일 경우 Danger Packet 구조체를 저장하는 배열 포인터를 갖는다.
+3. 모든 큐는 init(), enqueue(), dequeue()를 갖는다.
+
+#### 해시테이블
+1. 해시테이블은 HashTable 이라는 구조체이며, 해당 구조체는 HashTableHead 구조체 포인터를 저장하는 배열과 tablesize, timelimit, count 를 갖는다. tablesize, timelimit, count 는 모두 사용자가 정의한 값이다. ip주소를 해싱한 뒤 tablesize를 나누어 배열에 저장될 인덱스를 구한다. 충돌이 일어날 경우를 대비하여 링크드리스트로 구현했다.
+2. HashTableNode는 nodecnt, *next 멤버변수를 갖는다. nodecnt는 해당 인덱스를 갖는 srcip 노드의 개수, next는 다음 노드를 가리키는 포인터이다.
+3. 해시테이블에 저장되는 정보는 HashTableNode이며, 해당 구조체는 srcip, count, detecttime, *prev, *next를 갖는다. 각 값은 srcip 주소, 해당 ip주소가 유입된 개수, detecttime은 처음 탐지된 시간이다. 공격 인정 시간 내에 공격 인정 횟수만큼의 패킷이 유입된다면 해당 노드의 정보를 로그에 작성하고, 노드 메모리를 해제한다. 
