@@ -29,7 +29,7 @@
 4. `./IDS.out` 를 입력합니다.
 
 ## 구조도
-<img src="IDS_Structure_Diagram.png" />
+<img src="Structure_Diagram.png" />
 
 1. detectpacket 스레드 1개 당 1개의 원형큐를 갖는다
 2. readpacket 스레드는 패킷을 읽으면 라운드로빈 방식으로 원형큐에 패킷을 enqueue 한다
